@@ -1,0 +1,7375 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>三国人生模拟器 V4.0</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            min-height: 100dvh;
+            font-family: 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+
+        #status-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px 20px;
+            background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent);
+            z-index: 100;
+        }
+
+        #player-status {
+            display: flex;
+            gap: 20px;
+            font-size: 14px;
+            color: #FFD700;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        #player-status span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 1280px;
+            aspect-ratio: 16 / 9;
+            background: #111;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+            border-radius: 0;
+        }
+
+        #background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: opacity 0.5s ease;
+        }
+
+        /* 人物立绘容器 - 层级在背景之上、对话框之下 */
+        #character-sprite-container {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            height: 70%;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            pointer-events: none;
+            z-index: 1;
+            /* 底部渐隐遮罩 */
+            -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 10px), transparent 100%);
+            mask-image: linear-gradient(to bottom, black calc(100% - 10px), transparent 100%);
+        }
+
+        #character-sprite {
+            max-height: 100%;
+            max-width: 60%;
+            object-fit: contain;
+            opacity: 0;
+            transition: opacity 0.4s ease-in-out;
+            filter: drop-shadow(0 5px 15px rgba(0, 0, 0, 0.5));
+        }
+
+        #character-sprite.visible {
+            opacity: 1;
+        }
+
+        #dialogue-box {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.85) 20%);
+            padding: 60px 40px calc(30px + env(safe-area-inset-bottom));
+            padding-bottom: calc(30px + env(safe-area-inset-bottom));
+            min-height: 200px;
+            z-index: 10;
+        }
+
+        #character-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+        }
+
+        #dialogue-text {
+            color: #fff;
+            font-size: 1.1em;
+            line-height: 1.8;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+            min-height: 60px;
+        }
+
+        #click-indicator {
+            position: absolute;
+            bottom: 15px;
+            right: 30px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.3; }
+        }
+
+        #choices-container {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+        }
+
+        .choice-btn {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 15px 50px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 5px;
+            min-width: 300px;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.8);
+            transform: scale(1.05);
+        }
+
+        #title-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('images/backgrounds/bg_start.jpg') center center / cover no-repeat;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        
+        /* 标题界面遮罩 - 确保文字可读 */
+        #title-screen::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            z-index: -1;
+        }
+
+        #title-screen h1 {
+            color: #fff;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 3px 3px 6px rgba(0, 0, 0, 0.5);
+        }
+
+        #title-screen p {
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 50px;
+            font-size: 1.1em;
+        }
+
+        #start-btn {
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: #fff;
+            padding: 15px 60px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 30px;
+        }
+
+        #start-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+            transform: scale(1.1);
+        }
+
+        #ending-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            padding: 40px;
+            overflow: hidden;
+        }
+
+        #ending-screen.show {
+            display: flex;
+            animation: fadeIn 1s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        #ending-image-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 16 / 9;
+            margin-bottom: 30px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        #ending-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #ending-type {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9em;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 4px;
+        }
+
+        #ending-title {
+            color: #fff;
+            font-size: 2.2em;
+            margin-bottom: 25px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            text-align: center;
+        }
+
+        #ending-summary {
+            color: rgba(255, 255, 255, 0.85);
+            font-size: 1em;
+            line-height: 1.9;
+            max-width: 600px;
+            text-align: center;
+            margin-bottom: 35px;
+            padding: 0 20px;
+        }
+
+        #restart-btn {
+            background: transparent;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: #fff;
+            padding: 12px 40px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-radius: 25px;
+        }
+
+        #restart-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #fff;
+        }
+
+        #ending-type.good { color: #FFD700; }
+        #ending-type.normal { color: #87CEEB; }
+        #ending-type.bad { color: #FF6B6B; }
+
+        #ending-title.good { color: #FFD700; }
+        #ending-title.normal { color: #87CEEB; }
+        #ending-title.bad { color: #FF6B6B; }
+
+        .fade-out {
+            opacity: 0 !important;
+        }
+
+        .shake {
+            animation: shake 0.5s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .flash {
+            animation: flash 0.3s ease;
+        }
+
+        @keyframes flash {
+            0%, 100% { filter: brightness(1); }
+            50% { filter: brightness(2); }
+        }
+
+        /* 响应式适配 - 平板 */
+        @media (max-width: 768px) {
+            #dialogue-box {
+                padding: 40px 20px 20px;
+                min-height: 150px;
+            }
+            
+            #character-name {
+                font-size: 1em;
+            }
+            
+            #dialogue-text {
+                font-size: 0.95em;
+            }
+            
+            .choice-btn {
+                padding: 12px 30px;
+                font-size: 1em;
+                min-width: 250px;
+            }
+            
+            #title-screen h1 {
+                font-size: 2em;
+            }
+
+            #character-sprite-container {
+                bottom: 150px;
+                height: 60%;
+            }
+
+            #character-sprite {
+                max-width: 50%;
+            }
+        }
+
+        /* 响应式适配 - 手机 */
+        @media (max-width: 480px) {
+            body {
+                align-items: flex-start;
+            }
+
+            #game-container {
+                max-width: 100%;
+                box-shadow: none;
+                border-radius: 0;
+            }
+
+            #dialogue-box {
+                padding: 30px 15px calc(15px + env(safe-area-inset-bottom));
+                min-height: 130px;
+            }
+            
+            #character-name {
+                font-size: 0.95em;
+                margin-bottom: 8px;
+            }
+            
+            #dialogue-text {
+                font-size: 0.9em;
+                line-height: 1.7;
+                min-height: 50px;
+            }
+
+            #click-indicator {
+                font-size: 0.8em;
+                bottom: 10px;
+                right: 15px;
+            }
+            
+            .choice-btn {
+                padding: 12px 20px;
+                font-size: 0.95em;
+                min-width: 200px;
+                max-width: 90vw;
+            }
+
+            #choices-container {
+                gap: 12px;
+                width: 90%;
+            }
+            
+            #title-screen h1 {
+                font-size: 1.6em;
+                padding: 0 20px;
+                text-align: center;
+            }
+
+            #title-screen p {
+                font-size: 0.95em;
+                padding: 0 20px;
+                text-align: center;
+                margin-bottom: 40px;
+            }
+
+            #start-btn {
+                padding: 12px 50px;
+                font-size: 1.1em;
+            }
+
+            #character-sprite-container {
+                bottom: 130px;
+                height: 55%;
+            }
+
+            #character-sprite {
+                max-width: 45%;
+            }
+
+            /* 结局画面移动端适配 */
+            #ending-screen {
+                padding: 20px 15px;
+            }
+
+            #ending-image-container {
+                max-width: 100%;
+                margin-bottom: 20px;
+            }
+
+            #ending-type {
+                font-size: 0.8em;
+                letter-spacing: 3px;
+            }
+
+            #ending-title {
+                font-size: 1.5em;
+                margin-bottom: 15px;
+            }
+
+            #ending-summary {
+                font-size: 0.9em;
+                line-height: 1.8;
+                margin-bottom: 25px;
+                padding: 0 10px;
+            }
+
+            #restart-btn {
+                padding: 10px 35px;
+                font-size: 0.95em;
+            }
+        }
+
+        /* 竖屏模式特殊处理 */
+        @media (max-aspect-ratio: 4/3) {
+            #game-container {
+                aspect-ratio: auto;
+                height: 100vh;
+                height: 100dvh;
+                max-height: 100vh;
+            }
+
+            #background {
+                object-position: center center;
+            }
+
+            #character-sprite-container {
+                height: 45%;
+            }
+
+            #character-sprite {
+                max-width: 70%;
+                max-height: 100%;
+            }
+
+            #dialogue-box {
+                padding-bottom: calc(30px + env(safe-area-inset-bottom));
+                min-height: 25vh;
+                max-height: 35vh;
+            }
+
+            #ending-screen {
+                justify-content: flex-start;
+                padding-top: calc(10vh + env(safe-area-inset-top));
+                padding-bottom: calc(20px + env(safe-area-inset-bottom));
+                overflow-y: auto;
+            }
+
+            #ending-image-container {
+                flex-shrink: 0;
+            }
+        }
+
+        /* 超小屏幕 */
+        @media (max-width: 360px) {
+            #title-screen h1 {
+                font-size: 1.4em;
+            }
+
+            #dialogue-text {
+                font-size: 0.85em;
+            }
+
+            .choice-btn {
+                padding: 10px 15px;
+                font-size: 0.9em;
+                min-width: 180px;
+            }
+
+            #ending-title {
+                font-size: 1.3em;
+            }
+
+            #ending-summary {
+                font-size: 0.85em;
+            }
+        }
+
+        /* 横屏手机优化 */
+        @media (max-height: 500px) and (orientation: landscape) {
+            #dialogue-box {
+                min-height: 100px;
+                padding: 25px 20px 15px;
+            }
+
+            #dialogue-text {
+                min-height: 40px;
+            }
+
+            #character-sprite-container {
+                bottom: 50px;
+                height: 60%;
+            }
+
+            #title-screen h1 {
+                font-size: 1.8em;
+                margin-bottom: 10px;
+            }
+
+            #title-screen p {
+                margin-bottom: 20px;
+            }
+
+            #ending-screen {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+                gap: 20px;
+                padding: 15px;
+            }
+
+            #ending-image-container {
+                max-width: 40%;
+                margin-bottom: 0;
+            }
+
+            #ending-summary {
+                max-width: 50%;
+            }
+        }
+
+        /* 触摸设备优化 */
+        @media (hover: none) and (pointer: coarse) {
+            .choice-btn:hover {
+                transform: none;
+                background: rgba(0, 0, 0, 0.8);
+                border-color: rgba(255, 255, 255, 0.3);
+            }
+
+            .choice-btn:active {
+                background: rgba(255, 255, 255, 0.15);
+                border-color: rgba(255, 255, 255, 0.8);
+                transform: scale(0.98);
+            }
+
+            #start-btn:hover {
+                transform: none;
+                background: transparent;
+                border-color: rgba(255, 255, 255, 0.5);
+            }
+
+            #start-btn:active {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: #fff;
+                transform: scale(0.98);
+            }
+
+            #restart-btn:hover {
+                background: transparent;
+            }
+
+            #restart-btn:active {
+                background: rgba(255, 255, 255, 0.1);
+                border-color: #fff;
+            }
+        }
+
+        /* 安全区域适配（刘海屏等） */
+        @supports (padding: env(safe-area-inset-bottom)) {
+            #dialogue-box {
+                padding-bottom: calc(15px + env(safe-area-inset-bottom));
+            }
+
+            #ending-screen {
+                padding-bottom: calc(20px + env(safe-area-inset-bottom));
+            }
+        }
+    
+        /* 音频控制 */
+        #audio-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 200;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border-radius: 20px;
+            backdrop-filter: blur(5px);
+        }
+
+        .audio-btn {
+            background: transparent;
+            border: none;
+            color: #FFD700;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+            transition: transform 0.2s ease;
+        }
+
+        .audio-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .audio-btn:active {
+            transform: scale(0.95);
+        }
+
+        #volume-slider-container {
+            width: 80px;
+            display: flex;
+            align-items: center;
+        }
+
+        #volume-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+            outline: none;
+        }
+
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            background: #FFD700;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        #volume-slider::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        #volume-slider::-moz-range-thumb {
+            width: 14px;
+            height: 14px;
+            background: #FFD700;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+    
+        /* 加载进度条 */
+        #loading-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            margin-top: 40px;
+            padding: 20px 40px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        #loading-text {
+            color: #FFD700;
+            font-size: 1.1em;
+            font-weight: bold;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        }
+
+        #loading-progress {
+            width: 300px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #loading-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #FFD700, #FFA500, #FFD700);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        #loading-percent {
+            color: #FFD700;
+            font-size: 1em;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+    
+        /* 加载进度条响应式适配 */
+        @media (max-width: 480px) {
+            #loading-container {
+                width: 90%;
+                padding: 15px 20px;
+                margin-top: 30px;
+            }
+            
+            #loading-progress {
+                width: 100%;
+            }
+            
+            #loading-text {
+                font-size: 0.95em;
+            }
+            
+            #loading-percent {
+                font-size: 0.9em;
+            }
+        }
+    </style>
+<script id="game-data" type="application/json">{
+  "meta": {
+    "title": "三国人生模拟器 V4.0",
+    "author": "AI Creator",
+    "description": "在三国时代活出你的人生，体验黄巾起义到三国鼎立的波澜壮阔。V4版本新增开放式沙盒世界、NPC独立系统、城池归属、背景音乐！",
+    "version": "4.0.0"
+  },
+  "npcs": {
+    "liubei": {
+      "name": "刘备",
+      "faction": "蜀",
+      "force": 5,
+      "intel": 6,
+      "charm": 9,
+      "city": "成都",
+      "description": "汉室宗亲，仁德之主"
+    },
+    "caocao": {
+      "name": "曹操",
+      "faction": "魏",
+      "force": 5,
+      "intel": 9,
+      "charm": 8,
+      "city": "许昌",
+      "description": "乱世奸雄，唯才是举"
+    },
+    "sunquan": {
+      "name": "孙权",
+      "faction": "吴",
+      "force": 5,
+      "intel": 7,
+      "charm": 8,
+      "city": "建业",
+      "description": "江东之主，少年英主"
+    },
+    "zhugeliang": {
+      "name": "诸葛亮",
+      "faction": "蜀",
+      "force": 2,
+      "intel": 10,
+      "charm": 7,
+      "city": "成都",
+      "description": "卧龙先生，智慧化身"
+    },
+    "guanyu": {
+      "name": "关羽",
+      "faction": "蜀",
+      "force": 10,
+      "intel": 6,
+      "charm": 8,
+      "city": "樊城",
+      "description": "武圣，忠义无双"
+    },
+    "zhangfei": {
+      "name": "张飞",
+      "faction": "蜀",
+      "force": 9,
+      "intel": 3,
+      "charm": 5,
+      "city": "成都",
+      "description": "猛将，粗中有细"
+    },
+    "zhouyu": {
+      "name": "周瑜",
+      "faction": "吴",
+      "force": 6,
+      "intel": 9,
+      "charm": 7,
+      "city": "建业",
+      "description": "东吴大都督，风流倜傥"
+    },
+    "diaochan": {
+      "name": "貂蝉",
+      "faction": "无",
+      "force": 1,
+      "intel": 6,
+      "charm": 10,
+      "city": "洛阳",
+      "description": "闭月美人，乱世红颜"
+    },
+    "zhangjiao": {
+      "name": "张角",
+      "faction": "黄巾",
+      "force": 5,
+      "intel": 7,
+      "charm": 8,
+      "city": "巨鹿",
+      "description": "黄巾起义领袖"
+    },
+    "dongzhuo": {
+      "name": "董卓",
+      "faction": "董",
+      "force": 8,
+      "intel": 5,
+      "charm": 4,
+      "city": "长安",
+      "description": "西凉军阀，祸乱朝纲"
+    },
+    "lvbu": {
+      "name": "吕布",
+      "faction": "无",
+      "force": 10,
+      "intel": 3,
+      "charm": 5,
+      "city": "濮阳",
+      "description": "武力天下第一"
+    },
+    "sunce": {
+      "name": "孙策",
+      "faction": "吴",
+      "force": 9,
+      "intel": 5,
+      "charm": 7,
+      "city": "吴城",
+      "description": "江东小霸王"
+    },
+    "yuanshao": {
+      "name": "袁绍",
+      "faction": "袁",
+      "force": 4,
+      "intel": 5,
+      "charm": 6,
+      "city": "南皮",
+      "description": "河北袁绍，四世三公"
+    },
+    "zhaoyun": {
+      "name": "赵云",
+      "faction": "蜀",
+      "force": 9,
+      "intel": 5,
+      "charm": 7,
+      "city": "成都",
+      "description": "常山赵子龙，浑身是胆"
+    },
+    "machao": {
+      "name": "马超",
+      "faction": "蜀",
+      "force": 9,
+      "intel": 3,
+      "charm": 6,
+      "city": "成都",
+      "description": "西凉锦马超"
+    },
+    "huangzhong": {
+      "name": "黄忠",
+      "faction": "蜀",
+      "force": 8,
+      "intel": 4,
+      "charm": 5,
+      "city": "成都",
+      "description": "老当益壮，百步穿杨"
+    },
+    "zhangliao": {
+      "name": "张辽",
+      "faction": "魏",
+      "force": 8,
+      "intel": 6,
+      "charm": 6,
+      "city": "许昌",
+      "description": "威震逍遥津"
+    },
+    "xiahoudun": {
+      "name": "夏侯惇",
+      "faction": "魏",
+      "force": 8,
+      "intel": 4,
+      "charm": 5,
+      "city": "许昌",
+      "description": "拔矢啖睛，刚烈之士"
+    },
+    "dianwei": {
+      "name": "典韦",
+      "faction": "魏",
+      "force": 9,
+      "intel": 2,
+      "charm": 3,
+      "city": "宛城",
+      "description": "古之恶来，护卫虎痴"
+    },
+    "xuchu": {
+      "name": "许褚",
+      "faction": "魏",
+      "force": 9,
+      "intel": 2,
+      "charm": 3,
+      "city": "许昌",
+      "description": "虎痴，虎侯"
+    },
+    "simayi": {
+      "name": "司马懿",
+      "faction": "魏",
+      "force": 3,
+      "intel": 10,
+      "charm": 5,
+      "city": "许昌",
+      "description": "鹰视狼顾，深藏不露"
+    },
+    "ganning": {
+      "name": "甘宁",
+      "faction": "吴",
+      "force": 8,
+      "intel": 5,
+      "charm": 6,
+      "city": "柴桑",
+      "description": "锦帆贼，百骑劫曹营"
+    },
+    "lvmeng": {
+      "name": "吕蒙",
+      "faction": "吴",
+      "force": 7,
+      "intel": 7,
+      "charm": 5,
+      "city": "建业",
+      "description": "刮目相看白衣渡江"
+    },
+    "huanggai": {
+      "name": "黄盖",
+      "faction": "吴",
+      "force": 7,
+      "intel": 5,
+      "charm": 6,
+      "city": "柴桑",
+      "description": "苦肉计，诈降曹操"
+    },
+    "taishici": {
+      "name": "太史慈",
+      "faction": "吴",
+      "force": 8,
+      "intel": 5,
+      "charm": 6,
+      "city": "北海",
+      "description": "大丈夫当带三尺剑立不世之功"
+    },
+    "zhoutai": {
+      "name": "周泰",
+      "faction": "吴",
+      "force": 8,
+      "intel": 3,
+      "charm": 4,
+      "city": "吴城",
+      "description": "多次救孙权，身受重创"
+    },
+    "lidian": {
+      "name": "李典",
+      "faction": "魏",
+      "force": 6,
+      "intel": 7,
+      "charm": 5,
+      "city": "汝南",
+      "description": "博闻多智，爱好学问"
+    },
+    "yuejin": {
+      "name": "乐进",
+      "faction": "魏",
+      "force": 7,
+      "intel": 4,
+      "charm": 4,
+      "city": "许昌",
+      "description": "每战先登，骁果著称"
+    },
+    "yanliang": {
+      "name": "颜良",
+      "faction": "袁",
+      "force": 9,
+      "intel": 3,
+      "charm": 4,
+      "city": "南皮",
+      "description": "袁绍麾下猛将"
+    },
+    "wenchou": {
+      "name": "文丑",
+      "faction": "袁",
+      "force": 9,
+      "intel": 3,
+      "charm": 4,
+      "city": "南皮",
+      "description": "袁绍麾下猛将"
+    },
+    "nobody": {
+      "name": "无名山贼",
+      "faction": "山贼",
+      "force": 5,
+      "intel": 2,
+      "charm": 3,
+      "city": "山林",
+      "description": "占山为王的草寇"
+    }
+  },
+  "items": {
+    "steel_sword": {
+      "name": "精钢刀",
+      "type": "weapon",
+      "force": 2,
+      "description": "锋利的钢刀"
+    },
+    "iron_armor": {
+      "name": "铁甲",
+      "type": "armor",
+      "defense": 2,
+      "description": "坚固的铁制铠甲"
+    },
+    "horse_basic": {
+      "name": "普通马",
+      "type": "mount",
+      "move": 1,
+      "description": "代步工具"
+    },
+    "jinyunyao": {
+      "name": "金疮药",
+      "type": "consumable",
+      "effect": "heal_30",
+      "description": "治疗伤势"
+    },
+    "taiping_book": {
+      "name": "太平要术",
+      "type": "treasure",
+      "intel": 2,
+      "luck": 1,
+      "description": "张角的秘术"
+    },
+    "sunzi_book": {
+      "name": "孙子兵法",
+      "type": "skill_book",
+      "skill": "zhenfa",
+      "description": "兵法圣典"
+    },
+    "spear_book": {
+      "name": "枪法秘籍",
+      "type": "skill_book",
+      "skill": "spear",
+      "description": "枪法入门"
+    },
+    "gold_50": {
+      "name": "50金",
+      "type": "money",
+      "amount": 50,
+      "description": "一笔钱财"
+    }
+  },
+  "characters": [
+    {
+      "id": "protagonist",
+      "name": "你",
+      "color": "#4A90D9"
+    },
+    {
+      "id": "narrator",
+      "name": "",
+      "color": "#888888"
+    },
+    {
+      "id": "liubei",
+      "name": "刘备",
+      "color": "#2E8B57"
+    },
+    {
+      "id": "caocao",
+      "name": "曹操",
+      "color": "#8B0000"
+    },
+    {
+      "id": "sunquan",
+      "name": "孙权",
+      "color": "#4169E1"
+    },
+    {
+      "id": "zhugeliang",
+      "name": "诸葛亮",
+      "color": "#00CED1"
+    },
+    {
+      "id": "guanyu",
+      "name": "关羽",
+      "color": "#228B22"
+    },
+    {
+      "id": "zhangfei",
+      "name": "张飞",
+      "color": "#FF4500"
+    },
+    {
+      "id": "zhouyu",
+      "name": "周瑜",
+      "color": "#9932CC"
+    },
+    {
+      "id": "diaochan",
+      "name": "貂蝉",
+      "color": "#FF69B4"
+    },
+    {
+      "id": "zhangjiao",
+      "name": "张角",
+      "color": "#FFD700"
+    },
+    {
+      "id": "dongzhuo",
+      "name": "董卓",
+      "color": "#2F4F4F"
+    },
+    {
+      "id": "lvbu",
+      "name": "吕布",
+      "color": "#DC143C"
+    },
+    {
+      "id": "sunce",
+      "name": "孙策",
+      "color": "#4169E1"
+    },
+    {
+      "id": "yuanshao",
+      "name": "袁绍",
+      "color": "#800080"
+    },
+    {
+      "id": "zhaoyun",
+      "name": "赵云",
+      "color": "#1E90FF"
+    },
+    {
+      "id": "machao",
+      "name": "马超",
+      "color": "#FFD700"
+    },
+    {
+      "id": "huangzhong",
+      "name": "黄忠",
+      "color": "#DAA520"
+    },
+    {
+      "id": "zhangliao",
+      "name": "张辽",
+      "color": "#8B4513"
+    },
+    {
+      "id": "xiahoudun",
+      "name": "夏侯惇",
+      "color": "#800000"
+    },
+    {
+      "id": "dianwei",
+      "name": "典韦",
+      "color": "#696969"
+    },
+    {
+      "id": "xuchu",
+      "name": "许褚",
+      "color": "#8B7355"
+    },
+    {
+      "id": "simayi",
+      "name": "司马懿",
+      "color": "#4B0082"
+    },
+    {
+      "id": "ganning",
+      "name": "甘宁",
+      "color": "#FF8C00"
+    },
+    {
+      "id": "lvmeng",
+      "name": "吕蒙",
+      "color": "#4169E1"
+    },
+    {
+      "id": "huanggai",
+      "name": "黄盖",
+      "color": "#D2691E"
+    },
+    {
+      "id": "taishici",
+      "name": "太史慈",
+      "color": "#32CD32"
+    },
+    {
+      "id": "zhoutai",
+      "name": "周泰",
+      "color": "#4682B4"
+    },
+    {
+      "id": "yanliang",
+      "name": "颜良",
+      "color": "#800000"
+    },
+    {
+      "id": "wenchou",
+      "name": "文丑",
+      "color": "#800000"
+    },
+    {
+      "id": "nobody",
+      "name": "无名山贼",
+      "color": "#666666"
+    }
+  ],
+  "skills": {
+    "basic_fight": {
+      "name": "基础武艺",
+      "type": "combat",
+      "level": 1,
+      "damage_bonus": 10
+    },
+    "spear": {
+      "name": "枪法",
+      "type": "combat",
+      "level": 0,
+      "require": {
+        "force": 4
+      },
+      "damage_bonus": 30
+    },
+    "blade": {
+      "name": "刀法",
+      "type": "combat",
+      "level": 0,
+      "require": {
+        "force": 3
+      },
+      "damage_bonus": 25
+    },
+    "horse": {
+      "name": "骑术",
+      "type": "combat",
+      "level": 0,
+      "require": {
+        "force": 4
+      },
+      "cavalry_bonus": 30
+    },
+    "zhenfa": {
+      "name": "阵法",
+      "type": "strategy",
+      "level": 0,
+      "require": {
+        "intel": 6
+      },
+      "battle_bonus": 20
+    },
+    "huogong": {
+      "name": "火攻",
+      "type": "strategy",
+      "level": 0,
+      "require": {
+        "intel": 6
+      },
+      "fire_damage": 30
+    },
+    "sheshipu": {
+      "name": "舌战",
+      "type": "social",
+      "level": 0,
+      "require": {
+        "charm": 6
+      },
+      "persuade_bonus": 30
+    },
+    "shangye": {
+      "name": "商业",
+      "type": "economy",
+      "level": 0,
+      "require": {
+        "charm": 4
+      },
+      "trade_bonus": 10
+    }
+  },
+  "scenes": [
+    {
+      "id": "start",
+      "background": "bg_start.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "「东汉末年，天下大乱。」"
+        },
+        {
+          "character": "narrator",
+          "text": "「黄巾起义的战火即将点燃，三国的英雄们正在崛起。」"
+        },
+        {
+          "character": "narrator",
+          "text": "「而你，也将在这乱世中书写属于自己的传奇。」"
+        },
+        {
+          "character": "narrator",
+          "text": "「《三国人生模拟器 V4.0》新增：地图探索、技能系统、道具装备！」"
+        },
+        {
+          "character": "narrator",
+          "text": "「首先，请选择你的人生起点——」"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🪖 士大夫 - 出身书香门第，饱读诗书（智力+2）",
+          "next": "choose_scholar"
+        },
+        {
+          "text": "🏚️ 流民 - 乱世飘零，一无所有（运势+1）",
+          "next": "choose_refugee"
+        },
+        {
+          "text": "💰 商贩 - 精打细算，买卖四方（商业技能）",
+          "next": "choose_merchant"
+        },
+        {
+          "text": "⚔️ 士兵 - 投军入伍，刀光剑影（武力+2）",
+          "next": "choose_soldier"
+        }
+      ]
+    },
+    {
+      "id": "choose_scholar",
+      "background": "bg_scholar.png",
+      "setup": {
+        "identity": "scholar",
+        "intel": 8,
+        "charm": 7,
+        "wealth": 60,
+        "skills": [
+          "sheshipu"
+        ]
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你出身于书香门第，父亲是郡中一名小吏。"
+        },
+        {
+          "character": "narrator",
+          "text": "自幼聪颖过人，七岁便能诗作文。"
+        },
+        {
+          "character": "narrator",
+          "text": "家族虽不富裕，却也衣食无忧，期望你日后能光耀门楣。"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 你习得了【舌战】技能，说服能力+30%"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "choose_refugee",
+      "background": "bg_refugee.png",
+      "setup": {
+        "identity": "refugee",
+        "constitution": 6,
+        "luck": 6,
+        "wealth": 10
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你出身于贫苦农家，家乡遭遇旱灾颗粒无收。"
+        },
+        {
+          "character": "narrator",
+          "text": "年幼的你跟随父母逃荒，一路上风餐露宿。"
+        },
+        {
+          "character": "narrator",
+          "text": "父母先后离世，你成了孤苦伶仃的孤儿。"
+        },
+        {
+          "character": "narrator",
+          "text": "🍀 你的运势极高，奇遇概率大幅提升！"
+        }
+      ],
+      "next": "main_story_refugee"
+    },
+    {
+      "id": "choose_merchant",
+      "background": "bg_merchant.png",
+      "setup": {
+        "identity": "merchant",
+        "charm": 7,
+        "intel": 7,
+        "wealth": 50,
+        "skills": [
+          "shangye"
+        ]
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你出身于商贾之家，父亲经营着一家杂货铺。"
+        },
+        {
+          "character": "narrator",
+          "text": "从小耳濡目染，你对数字和人情世故有着敏锐的直觉。"
+        },
+        {
+          "character": "narrator",
+          "text": "虽然商人地位不高，但家道殷实。"
+        },
+        {
+          "character": "narrator",
+          "text": "💰 你习得了【商业】技能，交易价格+10%"
+        }
+      ],
+      "next": "main_story_merchant"
+    },
+    {
+      "id": "choose_soldier",
+      "background": "bg_camp.png",
+      "setup": {
+        "identity": "soldier",
+        "force": 7,
+        "constitution": 6,
+        "wealth": 20,
+        "skills": [
+          "basic_fight"
+        ]
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你出身于军户之家，祖辈都是普通士兵。"
+        },
+        {
+          "character": "narrator",
+          "text": "自幼习武，身强体壮，刀枪剑戟样样通晓。"
+        },
+        {
+          "character": "narrator",
+          "text": "乱世之中，有一技之长或许能出人头地。"
+        },
+        {
+          "character": "narrator",
+          "text": "⚔️ 你习得了【基础武艺】，战斗伤害+10%"
+        }
+      ],
+      "next": "main_story_soldier"
+    },
+    {
+      "id": "main_story_scholar",
+      "background": "bg_youth.png",
+      "yearEvent": 184,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "时光飞逝，转眼你已十五岁，在乡里小有名气。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 184年，黄巾起义爆发，天下大乱！"
+        },
+        {
+          "character": "narrator",
+          "text": "乱世之中，读书人何去何从？"
+        },
+        {
+          "character": "narrator",
+          "text": "【V3新功能】可前往地图探索，寻找机会！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map"
+        },
+        {
+          "text": "投靠官府，参与平叛",
+          "next": "scholar_government"
+        },
+        {
+          "text": "北上京城求学",
+          "next": "scholar_beijing"
+        }
+      ]
+    },
+    {
+      "id": "main_story_refugee",
+      "background": "bg_youth.png",
+      "yearEvent": 184,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你已经习惯了流浪乞讨的生活。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 184年，黄巾起义爆发，战火蔓延。"
+        },
+        {
+          "character": "narrator",
+          "text": "是时候做出选择了……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map"
+        },
+        {
+          "text": "加入黄巾军，响应号召",
+          "next": "refugee_yellow"
+        },
+        {
+          "text": "投军平叛，换个活法",
+          "next": "refugee_army"
+        }
+      ]
+    },
+    {
+      "id": "main_story_merchant",
+      "background": "bg_youth.png",
+      "yearEvent": 184,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你已经能独当一面，帮助父亲打理生意。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 184年，黄巾起义爆发，商路断绝。"
+        },
+        {
+          "character": "narrator",
+          "text": "乱世之中，有人倾家荡产，也有人发战争财……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map"
+        },
+        {
+          "text": "冒险为官府运送军需",
+          "next": "merchant_war"
+        },
+        {
+          "text": "低调经营，静观其变",
+          "next": "merchant_wait"
+        }
+      ]
+    },
+    {
+      "id": "main_story_soldier",
+      "background": "bg_camp.png",
+      "yearEvent": 184,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你已经是军中的老兵，参加过多次剿匪。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 184年，黄巾起义爆发，大军即将出征！"
+        },
+        {
+          "character": "narrator",
+          "text": "你跃跃欲试，这是建功立业的好机会！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map"
+        },
+        {
+          "text": "主动请缨，担任先锋",
+          "next": "soldier_vanguard"
+        },
+        {
+          "text": "服从安排，做好本职",
+          "next": "soldier_normal"
+        }
+      ]
+    },
+    {
+      "id": "open_map",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【三 国 地 图】"
+        },
+        {
+          "character": "narrator",
+          "text": "当前年份：184年（黄巾之乱）"
+        },
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 司隶地区：洛阳（首都）、长安"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 荆州地区：荆州、襄阳、樊城、柴桑"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 扬州地区：建业、吴城、寿春"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 豫州地区：许昌、汝南"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 冀州地区：南皮、邺城、平原、巨鹿"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 兖州地区：濮阳、山阳"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 益州地区：成都、云南"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 其他地区：北海(北海)、徐州、小沛、宛"
+        }
+      ],
+      "choices": [
+        {
+          "text": "探索 洛阳 - 可能遇到：曹操、司马懿、貂蝉",
+          "next": "explore_luoyang"
+        },
+        {
+          "text": "探索 荆州 - 可能遇到：甘宁、黄盖",
+          "next": "explore_jingzhou"
+        },
+        {
+          "text": "探索 北海 - 可能遇到：太史慈",
+          "next": "explore_beihai"
+        },
+        {
+          "text": "探索 兖州山阳 - 可能遇到：山贼/吕布",
+          "next": "explore_shanyang"
+        },
+        {
+          "text": "探索 汝南 - 可能遇到：黄巾余党",
+          "next": "explore_runian"
+        },
+        {
+          "text": "返回继续主线",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "explore_luoyang",
+      "background": "bg_luoyang.png",
+      "cityEvent": "luoyang",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到洛阳，这座东汉首都繁华喧嚣。"
+        },
+        {
+          "character": "narrator",
+          "text": "街道上人来人往，各色人物穿梭其间……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "打听消息 - 可能遇到随机事件",
+          "next": "luoyang_rumor"
+        },
+        {
+          "text": "去集市逛逛 - 可能购买装备",
+          "next": "luoyang_market"
+        },
+        {
+          "text": "观察行人 - 可能遇到名人",
+          "next": "luoyang_observe"
+        },
+        {
+          "text": "离开洛阳",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "luoyang_rumor",
+      "background": "bg_luoyang.png",
+      "randomEvent": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你在茶馆打听消息，听到不少传闻……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "听说有人在城外发放符水，似乎是黄巾余党",
+          "next": "luoyang_yellow"
+        },
+        {
+          "text": "听说城中来了位大人物，带着不少护卫",
+          "next": "luoyang_caocao"
+        },
+        {
+          "text": "只是些无聊的市井流言，没什么价值",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "luoyang_yellow",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "城外确实有一群黄巾余党在活动。"
+        },
+        {
+          "character": "narrator",
+          "text": "要不要去查看一番？"
+        }
+      ],
+      "choices": [
+        {
+          "text": "前往查看 - 可能遇到张角余党",
+          "next": "luoyang_fight_bandit"
+        },
+        {
+          "text": "向官府举报，换取赏金",
+          "next": "luoyang_report"
+        },
+        {
+          "text": "不关我事，离开",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "luoyang_fight_bandit",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "与黄巾余党战斗",
+        "enemyForce": 4
+      },
+      "outcomes": {
+        "win": "luoyang_bandit_win",
+        "lose": "luoyang_bandit_lose"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "luoyang_bandit_win",
+      "background": "bg_battle1.png",
+      "fameChange": 10,
+      "itemGet": "jinyunyao",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击溃了黄巾余党，官府悬赏10金！"
+        },
+        {
+          "character": "narrator",
+          "text": "获得【金疮药】×1！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "luoyang_bandit_lose",
+      "background": "bg_battle1.png",
+      "healthChange": -20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌黄巾余党，身受轻伤。"
+        },
+        {
+          "character": "narrator",
+          "text": "好在你机智逃脱，没有大碍。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "luoyang_report",
+      "background": "bg_luoyang.png",
+      "fameChange": 15,
+      "wealthChange": 20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你向官府举报，官府派人剿灭了黄巾余党。"
+        },
+        {
+          "character": "narrator",
+          "text": "获得赏金20金！声望提升！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "luoyang_caocao",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你循迹而去，竟遇到了曹操！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）哦？这位先生似乎对我很感兴趣？"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 5
+      },
+      "choices": [
+        {
+          "text": "上前自我介绍，结交曹操",
+          "next": "luoyang_meet_caocao"
+        },
+        {
+          "text": "远远观望，不贸然接触",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "luoyang_meet_caocao",
+      "background": "bg_luoyang.png",
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "protagonist",
+          "text": "在下敬仰将军大名，不知可否一叙？"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）哈哈哈！乱世之中，正需结交天下英才！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）日后若有需要，可来许昌找我！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "luoyang_market",
+      "background": "bg_market.png",
+      "showShop": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "洛阳集市热闹非凡，各色商品琳琅满目。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "购买【精钢刀】- 30金 - 武力+2",
+          "next": "buy_steel_sword"
+        },
+        {
+          "text": "购买【铁甲】- 40金 - 防御+2",
+          "next": "buy_iron_armor"
+        },
+        {
+          "text": "购买【金疮药】- 10金",
+          "next": "buy_jinyunyao"
+        },
+        {
+          "text": "太贵了，不买了",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "buy_steel_sword",
+      "background": "bg_market.png",
+      "wealthChange": -30,
+      "itemGet": "steel_sword",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买下了一把精钢刀，锋利无比！"
+        },
+        {
+          "character": "narrator",
+          "text": "⚔️ 装备【精钢刀】，武力+2！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "buy_iron_armor",
+      "background": "bg_market.png",
+      "wealthChange": -40,
+      "itemGet": "iron_armor",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买下了一件铁甲，防护力大增！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "buy_jinyunyao",
+      "background": "bg_market.png",
+      "wealthChange": -10,
+      "itemGet": "jinyunyao",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买下了一瓶金疮药，以备不时之需。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "luoyang_observe",
+      "background": "bg_luoyang.png",
+      "randomEvent": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你仔细观察行人，发现一位气质出众的青年……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "主动上前攀谈",
+          "next": "luoyang_meet_sima"
+        },
+        {
+          "text": "保持距离，暗中观察",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "luoyang_meet_sima",
+      "background": "bg_luoyang.png",
+      "intimacyEvent": {
+        "target": "simayi",
+        "change": 10
+      },
+      "dialogues": [
+        {
+          "character": "simayi",
+          "text": "（司马懿）阁下有何见教？"
+        },
+        {
+          "character": "protagonist",
+          "text": "在下见先生气度不凡，冒昧结识。"
+        },
+        {
+          "character": "simayi",
+          "text": "（司马懿）……有趣。他日若有机缘，再叙。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "explore_jingzhou",
+      "background": "bg_jingzhou.png",
+      "cityEvent": "jingzhou",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到荆州，这里是兵家必争之地。"
+        },
+        {
+          "character": "narrator",
+          "text": "刘表坐镇此地，城中还算太平。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "打听消息",
+          "next": "jingzhou_rumor"
+        },
+        {
+          "text": "去集市逛逛",
+          "next": "jingzhou_market"
+        },
+        {
+          "text": "前往柴桑探索",
+          "next": "explore_chaizhu"
+        },
+        {
+          "text": "返回",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "jingzhou_rumor",
+      "background": "bg_jingzhou.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "听说柴桑最近来了两位猛将，叫甘宁和黄盖。"
+        },
+        {
+          "character": "narrator",
+          "text": "他们似乎在招募人马，准备干一番大事。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "前往柴桑拜访",
+          "next": "explore_chaizhu"
+        },
+        {
+          "text": "不感兴趣，返回",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "jingzhou_market",
+      "background": "bg_market.png",
+      "showShop": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "荆州集市商贾云集，商品丰富。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "购买【普通马】- 25金 - 移动+1",
+          "next": "buy_horse"
+        },
+        {
+          "text": "不买了",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "buy_horse",
+      "background": "bg_market.png",
+      "wealthChange": -25,
+      "itemGet": "horse_basic",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买了一匹普通马代步。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "explore_chaizhu",
+      "background": "bg_chaizhu.png",
+      "cityEvent": "chaizhu",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到柴桑，这里水网密布。"
+        },
+        {
+          "character": "narrator",
+          "text": "岸边停着几艘装饰华丽的船只，似乎是水贼的船。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "大胆上前搭话",
+          "next": "chaizhu_meet_ganning"
+        },
+        {
+          "text": "谨慎观察",
+          "next": "chaizhu_observe"
+        },
+        {
+          "text": "返回荆州",
+          "next": "explore_jingzhou"
+        }
+      ]
+    },
+    {
+      "id": "chaizhu_meet_ganning",
+      "background": "bg_chaizhu.png",
+      "intimacyEvent": {
+        "target": "ganning",
+        "change": 10
+      },
+      "dialogues": [
+        {
+          "character": "ganning",
+          "text": "（甘宁）哦？有意思的客人，你想干什么？"
+        },
+        {
+          "character": "protagonist",
+          "text": "在下仰慕将军威名，特来拜访。"
+        },
+        {
+          "character": "ganning",
+          "text": "（甘宁）哈哈哈！有眼光！某家甘宁是也！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "邀请甘宁一同创业",
+          "next": "recruit_ganning"
+        },
+        {
+          "text": "结交为友，不谈招募",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "recruit_ganning",
+      "background": "bg_chaizhu.png",
+      "skillCheck": {
+        "skill": "sheshipu",
+        "dc": 40
+      },
+      "dialogues": [
+        {
+          "character": "ganning",
+          "text": "（甘宁）你有几分口才，不过……"
+        },
+        {
+          "character": "ganning",
+          "text": "（甘宁）现在追随你还为时尚早，等你有了一番基业再说！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "ganning",
+        "change": 20
+      },
+      "next": "main_story_scholar",
+      "outcomes": {
+        "win": "main_story_scholar",
+        "lose": "main_story_scholar"
+      }
+    },
+    {
+      "id": "chaizhu_observe",
+      "background": "bg_chaizhu.png",
+      "intimacyEvent": {
+        "target": "huanggai",
+        "change": 5
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你观察到岸边的动静，发现一位老将正在操练士兵。"
+        },
+        {
+          "character": "narrator",
+          "text": "那正是黄盖，虽然年迈，仍精神矍铄。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "explore_beihai",
+      "background": "bg_beihai.png",
+      "cityEvent": "beihai",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到北海，这里民风淳朴。"
+        },
+        {
+          "character": "narrator",
+          "text": "城中正在举办宴会，似乎是孔融在招待客人。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "参加宴会",
+          "next": "beihai_feast"
+        },
+        {
+          "text": "在城中闲逛",
+          "next": "beihai_wander"
+        },
+        {
+          "text": "返回",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "beihai_feast",
+      "background": "bg_beihai.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你参加了孔融的宴会，席间宾客满座。"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）诸位，在下太史慈，愿为大家舞剑助兴！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 15
+      },
+      "choices": [
+        {
+          "text": "起身与太史慈切磋武艺",
+          "next": "beihai_duel"
+        },
+        {
+          "text": "鼓掌叫好，礼貌结交",
+          "next": "beihai_befriend"
+        }
+      ]
+    },
+    {
+      "id": "beihai_duel",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "taishici",
+        "desc": "与太史慈切磋",
+        "enemyForce": 8
+      },
+      "outcomes": {
+        "win": "beihai_duel_win",
+        "lose": "beihai_duel_lose",
+        "draw": "beihai_duel_draw"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "beihai_duel_win",
+      "background": "bg_battle1.png",
+      "fameChange": 20,
+      "skillLearn": "spear",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与太史慈大战百回合，竟略胜一筹！"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）好武艺！阁下是练剑的吧？"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）这是我的枪法心得，或对阁下有用！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得【枪法】！战斗伤害+30%！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 30
+      },
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "beihai_duel_lose",
+      "background": "bg_battle1.png",
+      "healthChange": -15,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌太史慈，但虽败犹荣。"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）好身手！期待再与阁下一战！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 20
+      },
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "beihai_duel_draw",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与太史慈势均力敌，握手言和。"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）痛快！君是劲敌！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 25
+      },
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "beihai_befriend",
+      "background": "bg_beihai.png",
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "taishici",
+          "text": "（太史慈）承蒙夸奖，太史慈愧不敢当。"
+        },
+        {
+          "character": "taishici",
+          "text": "（太史慈）先生日后若有需要，可来寻我！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "beihai_wander",
+      "background": "bg_beihai.png",
+      "randomEvent": true,
+      "itemGet": "gold_50",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你在城中闲逛，忽然在地上捡到一袋钱！"
+        },
+        {
+          "character": "narrator",
+          "text": "💰 获得50金！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "explore_shanyang",
+      "background": "bg_shanyang.png",
+      "cityEvent": "shanyang",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到兖州山阳，这里山高林密。"
+        },
+        {
+          "character": "narrator",
+          "text": "山中似乎有贼人出没……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "深入山中探查",
+          "next": "shanyang_deep"
+        },
+        {
+          "text": "在山脚等待观察",
+          "next": "shanyang_wait"
+        },
+        {
+          "text": "返回",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "shanyang_deep",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "与山贼战斗",
+        "enemyForce": 5
+      },
+      "outcomes": {
+        "win": "shanyang_bandit_win",
+        "lose": "shanyang_bandit_lose"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "shanyang_bandit_win",
+      "background": "bg_battle1.png",
+      "fameChange": 10,
+      "itemGet": "steel_sword",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击败了山贼，获得一把精钢刀和赏金！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "shanyang_bandit_lose",
+      "background": "bg_battle1.png",
+      "healthChange": -25,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌山贼，身受重伤，狼狈逃下山。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "shanyang_wait",
+      "background": "bg_shanyang.png",
+      "randomEvent": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你耐心等待，忽然看见一队人马下山。"
+        },
+        {
+          "character": "narrator",
+          "text": "为首之人手持方天画戟，威风凛凛——竟是吕布！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "上前拜见吕布",
+          "next": "shanyang_meet_lvbu"
+        },
+        {
+          "text": "悄悄尾随观察",
+          "next": "shanyang_follow"
+        },
+        {
+          "text": "速速离开，不宜招惹",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "shanyang_meet_lvbu",
+      "background": "bg_road.png",
+      "intimacyEvent": {
+        "target": "lvbu",
+        "change": 10
+      },
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）哦？你是何人？敢来见本将军？"
+        }
+      ],
+      "choices": [
+        {
+          "text": "自报家门，表达仰慕",
+          "next": "shanyang_lvbu_friend"
+        },
+        {
+          "text": "请求追随吕布",
+          "next": "shanyang_lvbu_join"
+        }
+      ]
+    },
+    {
+      "id": "shanyang_lvbu_friend",
+      "background": "bg_road.png",
+      "intimacyEvent": {
+        "target": "lvbu",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）哈哈哈！有眼光！本将军的威名，谁人不知！"
+        },
+        {
+          "character": "narrator",
+          "text": "吕布对你的态度还算满意。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "shanyang_lvbu_join",
+      "background": "bg_road.png",
+      "skillCheck": {
+        "skill": "force",
+        "dc": 50
+      },
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）想追随我？先让我看看你的本事！"
+        }
+      ],
+      "outcomes": {
+        "win": "shanyang_lvbu_join_success",
+        "lose": "shanyang_lvbu_join_fail"
+      }
+    },
+    {
+      "id": "shanyang_lvbu_join_success",
+      "background": "bg_road.png",
+      "fameChange": 15,
+      "skillLearn": "horse",
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）有点意思！跟着本将军，亏不了你！"
+        },
+        {
+          "character": "lvbu",
+          "text": "（吕布）这是我的骑术心得，拿去研读！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得【骑术】！骑兵战斗+30%！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "shanyang_lvbu_join_fail",
+      "background": "bg_road.png",
+      "healthChange": -10,
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）就这点本事？滚吧！"
+        },
+        {
+          "character": "narrator",
+          "text": "吕布不屑一顾，扬长而去。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "shanyang_follow",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你悄悄尾随，发现吕布去了濮阳城。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "explore_runian",
+      "background": "bg_runian.png",
+      "cityEvent": "runian",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到汝南，这里曾是黄巾军的活动区域。"
+        },
+        {
+          "character": "narrator",
+          "text": "城中秩序混乱，各色人等混杂其间。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "去酒馆打听消息",
+          "next": "runian_tavern"
+        },
+        {
+          "text": "寻找黄巾余党",
+          "next": "runian_find_yellow"
+        },
+        {
+          "text": "在城中购买物资",
+          "next": "runian_market"
+        },
+        {
+          "text": "返回",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "runian_tavern",
+      "background": "bg_market.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "酒馆里龙蛇混杂，三教九流都有。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "请人喝酒，换取情报",
+          "next": "runian_tavern_info"
+        },
+        {
+          "text": "找茬打架，闹事",
+          "next": "runian_tavern_fight"
+        },
+        {
+          "text": "安静喝酒，离开",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "runian_tavern_info",
+      "background": "bg_market.png",
+      "wealthChange": -15,
+      "itemGet": "taiping_book",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你请一位老者喝酒，他竟然给你一本《太平要术》残卷！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 获得【太平要术】！智力+2，运势+1！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "runian_tavern_fight",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "酒馆斗殴",
+        "enemyForce": 5
+      },
+      "outcomes": {
+        "win": "runian_tavern_win",
+        "lose": "runian_tavern_lose"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "runian_tavern_win",
+      "background": "bg_market.png",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你轻松击败了闹事者，酒馆众人对你刮目相看。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "runian_tavern_lose",
+      "background": "bg_market.png",
+      "healthChange": -15,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你寡不敌众，被打得鼻青脸肿。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "runian_find_yellow",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "与黄巾余党战斗",
+        "enemyForce": 6
+      },
+      "outcomes": {
+        "win": "runian_yellow_win",
+        "lose": "runian_yellow_lose"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "runian_yellow_win",
+      "background": "bg_battle1.png",
+      "fameChange": 15,
+      "itemGet": "gold_50",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击败了黄巾余党，获得50金赏金！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "runian_yellow_lose",
+      "background": "bg_battle1.png",
+      "healthChange": -30,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "黄巾余党人多势众，你身受重伤！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "runian_market",
+      "background": "bg_market.png",
+      "showShop": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "汝南集市东西便宜，但质量参差不齐。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "购买【孙子兵法】- 50金 - 可习得阵法技能",
+          "next": "buy_sunzi"
+        },
+        {
+          "text": "购买【金疮药】- 8金",
+          "next": "buy_jinyunyao_cheap"
+        },
+        {
+          "text": "不买了",
+          "next": "main_story_scholar"
+        }
+      ]
+    },
+    {
+      "id": "buy_sunzi",
+      "background": "bg_market.png",
+      "wealthChange": -50,
+      "itemGet": "sunzi_book",
+      "skillLearn": "zhenfa",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买了一本《孙子兵法》，研读后习得【阵法】！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得【阵法】！指挥能力+20%！"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "buy_jinyunyao_cheap",
+      "background": "bg_market.png",
+      "wealthChange": -8,
+      "itemGet": "jinyunyao",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你买了一瓶便宜的金疮药。"
+        }
+      ],
+      "next": "main_story_scholar"
+    },
+    {
+      "id": "scholar_government",
+      "background": "bg_yamen.png",
+      "fameChange": 5,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你成为郡守府的文吏，负责军需调度。"
+        },
+        {
+          "character": "narrator",
+          "text": "在一次押送粮草途中，你偶遇了一队官兵。"
+        }
+      ],
+      "next": "encounter_guanyu"
+    },
+    {
+      "id": "encounter_guanyu",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "guanyu",
+          "text": "（关羽）这位先生不像普通民夫，可是读书人？"
+        },
+        {
+          "character": "narrator",
+          "text": "关羽正是刘备的结义兄弟，他们正率军讨伐黄巾。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 10
+      },
+      "choices": [
+        {
+          "text": "自我介绍，与关羽交谈",
+          "next": "talk_guanyu"
+        },
+        {
+          "text": "礼貌告辞，继续赶路",
+          "next": "yellow_war_joined"
+        }
+      ]
+    },
+    {
+      "id": "talk_guanyu",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "protagonist",
+          "text": "在下是读书人，见将军气度不凡，敢问将军高姓大名？"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）在下关羽，字云长。吾兄刘备乃汉室宗亲。"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）先生若有空，可来我营中一叙。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 15
+      },
+      "next": "yellow_war_joined"
+    },
+    {
+      "id": "yellow_war_joined",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "黄巾之乱渐渐平息，你积累了一些声望。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 189年，董卓入京，天下再次大乱！"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "scholar_beijing",
+      "background": "bg_academy.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你北上京城，进入太学深造。"
+        },
+        {
+          "character": "narrator",
+          "text": "太学中人才济济，你结识了许多同学。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 184年，黄巾起义爆发，太学停课。"
+        }
+      ],
+      "next": "encounter_caocao_beijing"
+    },
+    {
+      "id": "encounter_caocao_beijing",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）你是太学生？如今朝廷昏暗，正需人才！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）乱世之中，读书人当有所作为！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 10
+      },
+      "choices": [
+        {
+          "text": "与曹操结交，共谋大事",
+          "next": "befriend_caocao"
+        },
+        {
+          "text": "婉言谢绝，静观其变",
+          "next": "luoyang_turmoil"
+        }
+      ]
+    },
+    {
+      "id": "befriend_caocao",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）好！我曹操最喜结交天下英才！"
+        },
+        {
+          "character": "narrator",
+          "text": "你与曹操结为知己，开始关注天下大事。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 20
+      },
+      "next": "luoyang_turmoil"
+    },
+    {
+      "id": "luoyang_turmoil",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "📅 189年，董卓率西凉铁骑入京！"
+        },
+        {
+          "character": "narrator",
+          "text": "废少帝，立献帝，独揽大权，京城陷入一片恐怖之中。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "refugee_yellow",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "zhangjiao",
+          "text": "（张角）天下苦难，皆因朝廷昏暗！尔等既来，便是兄弟姐妹！"
+        },
+        {
+          "character": "narrator",
+          "text": "你加入了黄巾军，成为一名普通士兵。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "奋勇作战，争取军功",
+          "next": "yellow_fight"
+        },
+        {
+          "text": "保存实力，暗中观察",
+          "next": "yellow_observe"
+        }
+      ]
+    },
+    {
+      "id": "yellow_fight",
+      "background": "bg_battle1.png",
+      "fameChange": -10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "战场上，你奋勇杀敌，屡立战功！"
+        },
+        {
+          "character": "zhangjiao",
+          "text": "（张角）此子勇猛，可堪大用！"
+        },
+        {
+          "character": "narrator",
+          "text": "你被提拔为小头目，但黄巾军终归败局已定……"
+        }
+      ],
+      "next": "yellow_defeat"
+    },
+    {
+      "id": "yellow_observe",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你保持低调，暗中观察形势。"
+        },
+        {
+          "character": "narrator",
+          "text": "果然，黄巾军很快被官军各个击破。"
+        },
+        {
+          "character": "narrator",
+          "text": "张角病逝，你趁乱逃离了战场。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "yellow_defeat",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "黄巾军最终被镇压，你带着残部落草为寇。"
+        },
+        {
+          "character": "narrator",
+          "text": "在山林中，你遇到了一个人……"
+        }
+      ],
+      "next": "encounter_lvbu"
+    },
+    {
+      "id": "encounter_lvbu",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）哦？山中也有人？报上名来！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "lvbu",
+        "change": 5
+      },
+      "choices": [
+        {
+          "text": "大战吕布！(武力10，极其危险)",
+          "next": "fight_lvbu"
+        },
+        {
+          "text": "自称好汉，请求结交",
+          "next": "befriend_lvbu"
+        },
+        {
+          "text": "见势不妙，速速逃走",
+          "next": "escape_lvbu"
+        }
+      ]
+    },
+    {
+      "id": "fight_lvbu",
+      "background": "bg_battle2.png",
+      "battleEvent": {
+        "enemy": "lvbu",
+        "desc": "与吕布单挑",
+        "enemyForce": 10
+      },
+      "outcomes": {
+        "win": "fight_lvbu_win",
+        "lose": "fight_lvbu_lose",
+        "draw": "fight_lvbu_draw"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "fight_lvbu_win",
+      "background": "bg_battle2.png",
+      "fameChange": 50,
+      "skillLearn": "blade",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与吕布大战三百回合，竟不分胜负！"
+        },
+        {
+          "character": "lvbu",
+          "text": "（吕布）好功夫！今日不分胜负，改日再战！"
+        },
+        {
+          "character": "lvbu",
+          "text": "（吕布）这是我多年研习的刀法心得，与君切磋！"
+        },
+        {
+          "character": "narrator",
+          "text": "你的武名传遍天下！📚 习得【刀法】！"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "fight_lvbu_lose",
+      "background": "bg_battle2.png",
+      "healthChange": -40,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与吕布交手，仅十合便败下阵来！"
+        },
+        {
+          "character": "lvbu",
+          "text": "（吕布）不堪一击！滚吧！"
+        },
+        {
+          "character": "narrator",
+          "text": "你身受重伤，狼狈而逃……"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "fight_lvbu_draw",
+      "background": "bg_battle2.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与吕布势均力敌，最终各自收兵。"
+        },
+        {
+          "character": "lvbu",
+          "text": "（吕布）有点意思！"
+        },
+        {
+          "character": "narrator",
+          "text": "吕布对你有了几分欣赏。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "lvbu",
+        "change": 20
+      },
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "befriend_lvbu",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "lvbu",
+          "text": "（吕布）哈哈哈！有胆识！某家吕布是也！"
+        },
+        {
+          "character": "narrator",
+          "text": "你与吕布结交，虽是草莽，也算一方人物。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "lvbu",
+        "change": 25
+      },
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "escape_lvbu",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你见吕布气势汹汹，连忙找借口离去。"
+        },
+        {
+          "character": "narrator",
+          "text": "保命要紧，留得青山在……"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "refugee_army",
+      "background": "bg_camp.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你投军平叛，成为官军中的一名士兵。"
+        },
+        {
+          "character": "narrator",
+          "text": "在一次战斗中，你表现出色，引起了注意。"
+        }
+      ],
+      "next": "encounter_zhangliao"
+    },
+    {
+      "id": "encounter_zhangliao",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "zhangliao",
+          "text": "（张辽）好小子！有几分勇力！可愿随我杀敌？"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhangliao",
+        "change": 15
+      },
+      "choices": [
+        {
+          "text": "追随张辽，奋勇杀敌",
+          "next": "follow_zhangliao"
+        },
+        {
+          "text": "婉言谢绝，继续从军",
+          "next": "yellow_war_joined"
+        }
+      ]
+    },
+    {
+      "id": "follow_zhangliao",
+      "background": "bg_battle1.png",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你追随张辽，在战场上屡立战功！"
+        },
+        {
+          "character": "zhangliao",
+          "text": "（张辽）好兄弟！有福同享！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhangliao",
+        "change": 20
+      },
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "merchant_war",
+      "background": "bg_market.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你冒险为官府运送军需，利润丰厚但风险极大。"
+        },
+        {
+          "character": "narrator",
+          "text": "在一次运粮途中，你遇到了劫匪！"
+        }
+      ],
+      "next": "encounter_merchant_bandit"
+    },
+    {
+      "id": "encounter_merchant_bandit",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "一伙山贼拦住了去路，为首的是个魁梧大汉！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "出重金贿赂，息事宁人",
+          "next": "bribe_bandit"
+        },
+        {
+          "text": "好言相劝，讲清利害",
+          "next": "persuade_bandit"
+        },
+        {
+          "text": "奋起反抗，与贼一战",
+          "next": "fight_bandit"
+        }
+      ]
+    },
+    {
+      "id": "bribe_bandit",
+      "background": "bg_road.png",
+      "wealthChange": -30,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你花费重金买通山贼，保住了性命和货物。"
+        },
+        {
+          "character": "narrator",
+          "text": "虽然破财，但总算完成了任务。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "persuade_bandit",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "protagonist",
+          "text": "壮士！如今朝廷正在剿匪，尔等可愿投军？"
+        },
+        {
+          "character": "narrator",
+          "text": "你的口才打动了山贼首领。"
+        },
+        {
+          "character": "narrator",
+          "text": "他决定带领手下投军，你因此立功受赏！"
+        }
+      ],
+      "fameChange": 15,
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "fight_bandit",
+      "background": "bg_battle1.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "与山贼战斗",
+        "enemyForce": 4
+      },
+      "outcomes": {
+        "win": "win_bandit",
+        "lose": "lose_bandit"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "win_bandit",
+      "background": "bg_battle1.png",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击退山贼，保住了货物！"
+        },
+        {
+          "character": "narrator",
+          "text": "从此你在商路上小有名气。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "lose_bandit",
+      "background": "bg_battle1.png",
+      "healthChange": -20,
+      "wealthChange": -50,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌山贼，身受重伤，货物被洗劫一空。"
+        },
+        {
+          "character": "narrator",
+          "text": "你艰难地捡回一条命……"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "merchant_wait",
+      "background": "bg_market.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你低调经营，躲过了战乱的冲击。"
+        },
+        {
+          "character": "narrator",
+          "text": "乱世之中，有人破产，有人暴富，你选择稳扎稳打。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "soldier_vanguard",
+      "background": "bg_battle1.png",
+      "fameChange": 15,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你主动请缨担任先锋，首战便斩杀敌将一名！"
+        },
+        {
+          "character": "narrator",
+          "text": "你的勇名传遍了全军！"
+        }
+      ],
+      "next": "encounter_zhaoyun"
+    },
+    {
+      "id": "encounter_zhaoyun",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "zhaoyun",
+          "text": "（赵云）好身手！在下常山赵子龙，可愿与君并肩作战？"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhaoyun",
+        "change": 15
+      },
+      "choices": [
+        {
+          "text": "欣然接受，与赵云结为战友",
+          "next": "friend_zhaoyun"
+        },
+        {
+          "text": "婉言谢绝，继续独来独往",
+          "next": "yellow_war_joined"
+        }
+      ]
+    },
+    {
+      "id": "friend_zhaoyun",
+      "background": "bg_battle1.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与赵云并肩作战，配合默契！"
+        },
+        {
+          "character": "zhaoyun",
+          "text": "（赵云）痛快！子龙从未遇到过如此合拍的战友！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhaoyun",
+        "change": 25
+      },
+      "next": "yellow_war_joined"
+    },
+    {
+      "id": "soldier_normal",
+      "background": "bg_camp.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你服从安排，做好后勤工作。"
+        },
+        {
+          "character": "narrator",
+          "text": "虽然不如先锋风光，但也安稳度过了战争。"
+        }
+      ],
+      "next": "yellow_war_joined"
+    },
+    {
+      "id": "dongzhuo_era",
+      "background": "bg_luoyang.png",
+      "yearEvent": 189,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "📅 189年，董卓率西凉铁骑入京！"
+        },
+        {
+          "character": "narrator",
+          "text": "废少帝，立献帝，独揽朝政！"
+        },
+        {
+          "character": "narrator",
+          "text": "关东诸侯起兵讨伐，天下大乱！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map_dongzhuo"
+        },
+        {
+          "text": "加入讨董联军",
+          "next": "join_alliance"
+        },
+        {
+          "text": "投靠董卓，谋取富贵",
+          "next": "join_dongzhuo"
+        },
+        {
+          "text": "逃离京城，另寻出路",
+          "next": "escape_capital"
+        }
+      ]
+    },
+    {
+      "id": "open_map_dongzhuo",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【三 国 地 图】"
+        },
+        {
+          "character": "narrator",
+          "text": "当前年份：189年（董卓乱政）"
+        },
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        }
+      ],
+      "choices": [
+        {
+          "text": "探索 长安 - 董卓大本营",
+          "next": "explore_changan"
+        },
+        {
+          "text": "探索 汜水关 - 讨董联军",
+          "next": "explore_sishui"
+        },
+        {
+          "text": "探索 北海 - 招兵买马",
+          "next": "explore_beihai_dongzhuo"
+        },
+        {
+          "text": "返回",
+          "next": "dongzhuo_era"
+        }
+      ]
+    },
+    {
+      "id": "explore_changan",
+      "background": "bg_changan.png",
+      "cityEvent": "changan",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到长安，董卓的势力中心。"
+        },
+        {
+          "character": "narrator",
+          "text": "城中戒备森严，气氛压抑。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "打探董卓的情报",
+          "next": "changan_dongzhuo_info"
+        },
+        {
+          "text": "寻找逃离的机会",
+          "next": "changan_escape"
+        },
+        {
+          "text": "冒险接近貂蝉",
+          "next": "changan_diaochan"
+        },
+        {
+          "text": "离开长安",
+          "next": "dongzhuo_era"
+        }
+      ]
+    },
+    {
+      "id": "changan_dongzhuo_info",
+      "background": "bg_changan.png",
+      "skillLearn": "huogong",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你打探到董卓的军事部署，以及长安的城防情况。"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得【火攻】！火攻成功率+30%！"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "changan_escape",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你找到机会逃离长安，但被董卓的士兵发现！"
+        }
+      ],
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "逃跑时被拦截",
+        "enemyForce": 5
+      },
+      "outcomes": {
+        "win": "changan_escape_win",
+        "lose": "changan_escape_lose"
+      }
+    },
+    {
+      "id": "changan_escape_win",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击退追兵，成功逃出长安！"
+        }
+      ],
+      "next": "join_alliance"
+    },
+    {
+      "id": "changan_escape_lose",
+      "background": "bg_road.png",
+      "healthChange": -20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌追兵，身受重伤，但总算逃出生天。"
+        }
+      ],
+      "next": "join_alliance"
+    },
+    {
+      "id": "changan_diaochan",
+      "background": "bg_changan.png",
+      "dialogues": [
+        {
+          "character": "diaochan",
+          "text": "（貂蝉）公子是何人？为何在此？"
+        }
+      ],
+      "choices": [
+        {
+          "text": "表明身份，表达爱慕",
+          "next": "changan_diaochan_love"
+        },
+        {
+          "text": "只是偶遇，礼貌寒暄",
+          "next": "changan_diaochan_polite"
+        },
+        {
+          "text": "识趣地离开",
+          "next": "dongzhuo_era"
+        }
+      ]
+    },
+    {
+      "id": "changan_diaochan_love",
+      "background": "bg_changan.png",
+      "intimacyEvent": {
+        "target": "diaochan",
+        "change": 20
+      },
+      "dialogues": [
+        {
+          "character": "diaochan",
+          "text": "（貂蝉）公子说笑了……"
+        },
+        {
+          "character": "diaochan",
+          "text": "（貂蝉）不过……公子倒是与旁人不同。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "changan_diaochan_polite",
+      "background": "bg_changan.png",
+      "intimacyEvent": {
+        "target": "diaochan",
+        "change": 10
+      },
+      "dialogues": [
+        {
+          "character": "diaochan",
+          "text": "（貂蝉）公子真是谦谦君子。"
+        }
+      ],
+      "next": "dongzhuo_era"
+    },
+    {
+      "id": "explore_sishui",
+      "background": "bg_sishui.png",
+      "cityEvent": "sishui",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "汜水关前，讨董联军与董卓军对峙。"
+        },
+        {
+          "character": "narrator",
+          "text": "各路诸侯正在商议作战计划。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "加入联军大营",
+          "next": "join_alliance"
+        },
+        {
+          "text": "观察双方形势",
+          "next": "sishui_observe"
+        },
+        {
+          "text": "返回",
+          "next": "dongzhuo_era"
+        }
+      ]
+    },
+    {
+      "id": "sishui_observe",
+      "background": "bg_sishui.png",
+      "fameChange": 5,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你仔细观察双方阵势，对军事有了更深的理解。"
+        }
+      ],
+      "next": "join_alliance"
+    },
+    {
+      "id": "explore_beihai_dongzhuo",
+      "background": "bg_beihai.png",
+      "cityEvent": "beihai",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "北海正在招兵买马，抵抗董卓。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "加入北海军",
+          "next": "beihai_join"
+        },
+        {
+          "text": "招募太史慈",
+          "next": "recruit_taishici_full"
+        },
+        {
+          "text": "返回",
+          "next": "dongzhuo_era"
+        }
+      ]
+    },
+    {
+      "id": "beihai_join",
+      "background": "bg_camp.png",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你加入北海军，开始训练新兵。"
+        }
+      ],
+      "next": "join_alliance"
+    },
+    {
+      "id": "recruit_taishici_full",
+      "background": "bg_beihai.png",
+      "skillCheck": {
+        "skill": "sheshipu",
+        "dc": 50
+      },
+      "dialogues": [
+        {
+          "character": "taishici",
+          "text": "（太史慈）你有几分才干，但追随你尚需时日。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "taishici",
+        "change": 15
+      },
+      "next": "dongzhuo_era",
+      "outcomes": {
+        "win": "dongzhuo_era",
+        "lose": "dongzhuo_era"
+      }
+    },
+    {
+      "id": "join_alliance",
+      "background": "bg_battle2.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你加入了讨董联军，见到了各路诸侯。"
+        },
+        {
+          "character": "narrator",
+          "text": "联军声势浩大，但各怀心思，难以同心。"
+        },
+        {
+          "character": "narrator",
+          "text": "唯有曹操和刘备真心想讨伐董卓……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "结识刘备，加入其麾下",
+          "next": "join_liubei"
+        },
+        {
+          "text": "投奔曹操，辅佐明主",
+          "next": "join_caocao"
+        },
+        {
+          "text": "观察局势，寻找机会",
+          "next": "observe_alliance"
+        }
+      ]
+    },
+    {
+      "id": "join_liubei",
+      "background": "bg_jingzhou.png",
+      "dialogues": [
+        {
+          "character": "liubei",
+          "text": "（刘备）先生愿意助我？备求之不得！"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）多了先生相助，如虎添翼！"
+        },
+        {
+          "character": "zhangfei",
+          "text": "（张飞）哈哈哈！又添新人！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhangfei",
+        "change": 10
+      },
+      "choices": [
+        {
+          "text": "正式加入刘备阵营",
+          "next": "liubei_follower"
+        },
+        {
+          "text": "保持独立，仅为盟友",
+          "next": "liubei_ally"
+        }
+      ]
+    },
+    {
+      "id": "liubei_follower",
+      "background": "bg_jingzhou.png",
+      "factionJoin": "shu",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你正式成为刘备的麾下！"
+        },
+        {
+          "character": "liubei",
+          "text": "（刘备）有先生相助，大业可期！"
+        }
+      ],
+      "next": "battle_hulao"
+    },
+    {
+      "id": "liubei_ally",
+      "background": "bg_jingzhou.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与刘备结为盟友，但未正式加入。"
+        },
+        {
+          "character": "liubei",
+          "text": "（刘备）无论先生作何选择，备都视先生为友！"
+        }
+      ],
+      "next": "battle_hulao"
+    },
+    {
+      "id": "join_caocao",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）很好！与君共事，大慰平生！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）乱世之中，唯才是举！先生必有大用！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 20
+      },
+      "choices": [
+        {
+          "text": "正式加入曹操麾下",
+          "next": "caocao_follower"
+        },
+        {
+          "text": "保持合作，但不入麾下",
+          "next": "caocao_ally"
+        }
+      ]
+    },
+    {
+      "id": "caocao_follower",
+      "background": "bg_luoyang.png",
+      "factionJoin": "wei",
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你成为曹操的得力助手！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）我得先生，如鱼得水！"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "caocao_ally",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与曹操合作，但保持独立身份。"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）也好，先生随时可来找我！"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "observe_alliance",
+      "background": "bg_battle2.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你冷眼旁观，见证了联军的内斗与分裂。"
+        },
+        {
+          "character": "narrator",
+          "text": "曹操孤军追击董卓，大败而归。"
+        },
+        {
+          "character": "narrator",
+          "text": "联军的失败让你明白，乱世之中，实力才是根本。"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "join_dongzhuo",
+      "background": "bg_luoyang.png",
+      "dialogues": [
+        {
+          "character": "dongzhuo",
+          "text": "（董卓）哈哈哈！来得正好！老夫正缺人才！"
+        },
+        {
+          "character": "narrator",
+          "text": "你暂时获得了董卓的赏识和荣华富贵。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "继续追随董卓",
+          "next": "dongzhuo_loyal"
+        },
+        {
+          "text": "暗中联络义士，图谋除贼",
+          "next": "dongzhuo_betray"
+        }
+      ]
+    },
+    {
+      "id": "dongzhuo_loyal",
+      "background": "bg_luoyang.png",
+      "fameChange": -20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你继续追随董卓，但董卓的暴行引来了众怒……"
+        },
+        {
+          "character": "diaochan",
+          "text": "（貂蝉）将军……"
+        },
+        {
+          "character": "narrator",
+          "text": "王允的连环计成功，董卓最终死于吕布之手……"
+        }
+      ],
+      "next": "ending_dongzhuo_death"
+    },
+    {
+      "id": "dongzhuo_betray",
+      "background": "bg_luoyang.png",
+      "fameChange": 20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你暗中与王允联络，参与了诛杀董卓的计划！"
+        },
+        {
+          "character": "narrator",
+          "text": "董卓死后，你因功获得赏赐。"
+        },
+        {
+          "character": "narrator",
+          "text": "但西凉军反扑，京城再度大乱……"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "escape_capital",
+      "background": "bg_road.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你离开京城，一路东行，躲避战乱。"
+        },
+        {
+          "character": "narrator",
+          "text": "途中，你听闻曹操正在招兵买马……"
+        }
+      ],
+      "next": "join_caocao"
+    },
+    {
+      "id": "battle_hulao",
+      "background": "bg_battle2.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "讨董联军进攻汜水关，遭遇了强敌——华雄！"
+        },
+        {
+          "character": "narrator",
+          "text": "华雄连斩联军数将，无人可挡！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map_hulao"
+        },
+        {
+          "text": "请战华雄，与之单挑",
+          "next": "fight_huashan"
+        },
+        {
+          "text": "为关羽温酒，推荐他出战",
+          "next": "recommend_guanyu"
+        }
+      ]
+    },
+    {
+      "id": "open_map_hulao",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "【地图探索 - 汜水关前】"
+        }
+      ],
+      "choices": [
+        {
+          "text": "挑战华雄",
+          "next": "fight_huashan"
+        },
+        {
+          "text": "推荐关羽出战",
+          "next": "recommend_guanyu"
+        },
+        {
+          "text": "观察形势",
+          "next": "battle_hulao_observe"
+        }
+      ]
+    },
+    {
+      "id": "battle_hulao_observe",
+      "background": "bg_battle2.png",
+      "fameChange": 5,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你观察华雄的武艺，发现他的弱点在于下盘不稳。"
+        }
+      ],
+      "next": "battle_hulao"
+    },
+    {
+      "id": "fight_huashan",
+      "background": "bg_battle2.png",
+      "battleEvent": {
+        "enemy": "nobody",
+        "desc": "与华雄单挑",
+        "enemyForce": 7
+      },
+      "outcomes": {
+        "win": "win_huashan",
+        "lose": "lose_huashan",
+        "draw": "draw_huashan"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "win_huashan",
+      "background": "bg_battle2.png",
+      "fameChange": 25,
+      "itemGet": "iron_armor",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你奋勇作战，竟一刀斩杀了华雄！"
+        },
+        {
+          "character": "narrator",
+          "text": "联军士气大振！你的威名传遍天下！"
+        },
+        {
+          "character": "narrator",
+          "text": "💰 获得华雄的【铁甲】！"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "lose_huashan",
+      "background": "bg_battle2.png",
+      "healthChange": -30,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你不敌华雄，身负重伤！"
+        },
+        {
+          "character": "narrator",
+          "text": "幸得关羽出战，一刀斩了华雄……"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 15
+      },
+      "next": "chibi_battle"
+    },
+    {
+      "id": "draw_huashan",
+      "background": "bg_battle2.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与华雄大战数十合，不分胜负！"
+        },
+        {
+          "character": "narrator",
+          "text": "双方鸣金收兵，你虽未获胜，却也全身而退。"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "recommend_guanyu",
+      "background": "bg_battle2.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "关羽温酒之间便斩了华雄！"
+        },
+        {
+          "character": "narrator",
+          "text": "你的举荐之功也被传为美谈。"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 10
+      },
+      "fameChange": 5,
+      "next": "chibi_battle"
+    },
+    {
+      "id": "guan_du_battle",
+      "background": "bg_battle3.png",
+      "yearEvent": 200,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "📅 200年，官渡之战爆发！"
+        },
+        {
+          "character": "narrator",
+          "text": "曹操与袁绍在官渡对峙，天下大势尽在于此。"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）此战关乎生死，不可不慎！"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map_guandu"
+        },
+        {
+          "text": "献计奇袭乌巢",
+          "next": "wuxiao_raid"
+        },
+        {
+          "text": "坚守阵地，以逸待劳",
+          "next": "guan_du_defend"
+        },
+        {
+          "text": "散播谣言，动摇敌军",
+          "next": "guan_du_rumor"
+        }
+      ]
+    },
+    {
+      "id": "open_map_guandu",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "【地图探索 - 官渡战场】"
+        }
+      ],
+      "choices": [
+        {
+          "text": "探索 南皮 - 袁绍大本营",
+          "next": "explore_nanpi"
+        },
+        {
+          "text": "献计乌巢",
+          "next": "wuxiao_raid"
+        },
+        {
+          "text": "坚守待机",
+          "next": "guan_du_defend"
+        },
+        {
+          "text": "返回",
+          "next": "guan_du_battle"
+        }
+      ]
+    },
+    {
+      "id": "explore_nanpi",
+      "background": "bg_nanpi.png",
+      "cityEvent": "nanpi",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你潜入袁绍大本营南皮城，打探军情。"
+        },
+        {
+          "character": "narrator",
+          "text": "发现袁绍麾下颜良、文丑二将镇守于此。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "挑战颜良或文丑",
+          "next": "guandu_fight_yanliang"
+        },
+        {
+          "text": "设法策反敌将",
+          "next": "guandu_persuade"
+        },
+        {
+          "text": "窃取情报后返回",
+          "next": "guan_du_battle"
+        }
+      ]
+    },
+    {
+      "id": "guandu_fight_yanliang",
+      "background": "bg_battle3.png",
+      "battleEvent": {
+        "enemy": "yanliang",
+        "desc": "与颜良战斗",
+        "enemyForce": 9
+      },
+      "outcomes": {
+        "win": "guandu_fight_win",
+        "lose": "guandu_fight_lose"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "guandu_fight_win",
+      "background": "bg_battle3.png",
+      "fameChange": 30,
+      "skillLearn": "spear",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击败了颜良！名声大振！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 从颜良处习得进阶【枪法】！"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "guandu_fight_lose",
+      "background": "bg_battle3.png",
+      "healthChange": -35,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "颜良武艺高强，你身受重伤！"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "guandu_persuade",
+      "background": "bg_nanpi.png",
+      "skillCheck": {
+        "skill": "sheshipu",
+        "dc": 60
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你尝试策反袁军将领……"
+        }
+      ],
+      "outcomes": {
+        "win": "guandu_persuade_win",
+        "lose": "guandu_persuade_lose"
+      }
+    },
+    {
+      "id": "guandu_persuade_win",
+      "background": "bg_nanpi.png",
+      "fameChange": 20,
+      "wealthChange": 50,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你成功说服一位将领倒戈，获得大量情报和财富！"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "guandu_persuade_lose",
+      "background": "bg_nanpi.png",
+      "healthChange": -15,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "策反失败，你被识破后狼狈逃回。"
+        }
+      ],
+      "next": "guan_du_battle"
+    },
+    {
+      "id": "wuxiao_raid",
+      "background": "bg_battle3.png",
+      "skillCheck": {
+        "skill": "huogong",
+        "dc": 40
+      },
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）妙计！此计若成，大事可定！"
+        }
+      ],
+      "outcomes": {
+        "win": "wuxiao_raid_win",
+        "lose": "wuxiao_raid_lose"
+      }
+    },
+    {
+      "id": "wuxiao_raid_win",
+      "background": "bg_battle3.png",
+      "fameChange": 25,
+      "skillLearn": "zhenfa",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你亲率精兵，夜袭乌巢！"
+        },
+        {
+          "character": "narrator",
+          "text": "一把大火，烧毁了袁绍的粮草辎重！"
+        },
+        {
+          "character": "narrator",
+          "text": "袁军大乱，曹操大获全胜！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 曹操授予你【阵法要略】！"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "wuxiao_raid_lose",
+      "background": "bg_battle3.png",
+      "healthChange": -20,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "夜袭失败，你身陷重围！"
+        },
+        {
+          "character": "narrator",
+          "text": "幸好援军及时赶到，你才得以脱险。"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "guan_du_defend",
+      "background": "bg_battle3.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "曹操采纳了你的建议，坚守不出，消耗敌军粮草。"
+        },
+        {
+          "character": "narrator",
+          "text": "袁绍久攻不下，军心渐渐涣散。"
+        },
+        {
+          "character": "narrator",
+          "text": "最终，曹操抓住战机，一举击溃袁军！"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "guan_du_rumor",
+      "background": "bg_battle3.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你派人潜入袁军，散布各种谣言。"
+        },
+        {
+          "character": "narrator",
+          "text": "袁军内部矛盾激化，多员大将被策反。"
+        },
+        {
+          "character": "narrator",
+          "text": "曹操趁机发动进攻，袁绍大败而逃！"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "chibi_battle",
+      "background": "bg_battle4.png",
+      "yearEvent": 208,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "📅 208年，赤壁之战爆发！"
+        },
+        {
+          "character": "narrator",
+          "text": "曹操率二十万大军南下，意图一统天下。"
+        },
+        {
+          "character": "narrator",
+          "text": "孙权与刘备联手，在赤壁与曹操对峙。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图探索",
+          "next": "open_map_chibi"
+        },
+        {
+          "text": "随孙刘联军，以弱胜强",
+          "next": "chibi_alliance"
+        },
+        {
+          "text": "随曹操南征，以强凌弱",
+          "next": "chibi_caocao"
+        }
+      ]
+    },
+    {
+      "id": "open_map_chibi",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "【地图探索 - 赤壁战场】"
+        }
+      ],
+      "choices": [
+        {
+          "text": "探索 建业 - 孙权大本营",
+          "next": "explore_jianye"
+        },
+        {
+          "text": "探索 柴桑 - 周瑜大营",
+          "next": "explore_chaizhu_chibi"
+        },
+        {
+          "text": "返回",
+          "next": "chibi_battle"
+        }
+      ]
+    },
+    {
+      "id": "explore_jianye",
+      "background": "bg_jianye.png",
+      "cityEvent": "jianye",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到建业，孙权的根据地。"
+        },
+        {
+          "character": "narrator",
+          "text": "这里水军强盛，战船林立。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "拜访孙权",
+          "next": "jianye_meet_sunquan"
+        },
+        {
+          "text": "在城中准备物资",
+          "next": "jianye_prepare"
+        },
+        {
+          "text": "返回",
+          "next": "chibi_battle"
+        }
+      ]
+    },
+    {
+      "id": "jianye_meet_sunquan",
+      "background": "bg_jianye.png",
+      "intimacyEvent": {
+        "target": "sunquan",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "sunquan",
+          "text": "（孙权）你是来助我东吴的？很好！"
+        },
+        {
+          "character": "sunquan",
+          "text": "（孙权）周瑜正在柴桑操练水军，你可去相助。"
+        }
+      ],
+      "next": "chibi_alliance"
+    },
+    {
+      "id": "jianye_prepare",
+      "background": "bg_jianye.png",
+      "itemGet": "horse_basic",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你在城中补充了物资，购买了一匹战马。"
+        }
+      ],
+      "next": "chibi_battle"
+    },
+    {
+      "id": "explore_chaizhu_chibi",
+      "background": "bg_chaizhu.png",
+      "cityEvent": "chaizhu",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到柴桑，周瑜正在操练水军。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "与周瑜商议火攻之策",
+          "next": "chibi_huogong"
+        },
+        {
+          "text": "结交甘宁、黄盖",
+          "next": "chibi_meet_generals"
+        },
+        {
+          "text": "返回",
+          "next": "chibi_battle"
+        }
+      ]
+    },
+    {
+      "id": "chibi_huogong",
+      "background": "bg_chaizhu.png",
+      "skillCheck": {
+        "skill": "huogong",
+        "dc": 50
+      },
+      "dialogues": [
+        {
+          "character": "zhouyu",
+          "text": "（周瑜）好计策！火攻正是破曹关键！"
+        }
+      ],
+      "outcomes": {
+        "win": "chibi_huogong_win",
+        "lose": "chibi_huogong_lose"
+      }
+    },
+    {
+      "id": "chibi_huogong_win",
+      "background": "bg_battle4.png",
+      "fameChange": 30,
+      "skillLearn": "huogong",
+      "intimacyEvent": {
+        "target": "zhouyu",
+        "change": 25
+      },
+      "dialogues": [
+        {
+          "character": "zhouyu",
+          "text": "（周瑜）先生真乃知己！亮已借得东风！"
+        },
+        {
+          "character": "narrator",
+          "text": "赤壁江面，火光冲天！曹军灰飞烟灭！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 你的【火攻】技能大幅提升！"
+        }
+      ],
+      "next": "three_kingdoms"
+    },
+    {
+      "id": "chibi_huogong_lose",
+      "background": "bg_chaizhu.png",
+      "intimacyEvent": {
+        "target": "zhouyu",
+        "change": 10
+      },
+      "dialogues": [
+        {
+          "character": "zhouyu",
+          "text": "（周瑜）虽有道理，但还欠火候。"
+        },
+        {
+          "character": "narrator",
+          "text": "周瑜心中已有破敌之策。"
+        }
+      ],
+      "next": "chibi_alliance"
+    },
+    {
+      "id": "chibi_meet_generals",
+      "background": "bg_chaizhu.png",
+      "intimacyEvent": {
+        "target": "huanggai",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "ganning",
+          "text": "（甘宁）哈哈哈！又来一位英雄！"
+        },
+        {
+          "character": "huanggai",
+          "text": "（黄盖）赤壁之战，你我并肩杀敌！"
+        }
+      ],
+      "next": "chibi_alliance"
+    },
+    {
+      "id": "chibi_alliance",
+      "background": "bg_battle4.png",
+      "dialogues": [
+        {
+          "character": "zhouyu",
+          "text": "（周瑜）火攻之计，正需东风！"
+        },
+        {
+          "character": "zhugeliang",
+          "text": "（诸葛亮）亮已借得东风！"
+        },
+        {
+          "character": "narrator",
+          "text": "赤壁江面，火光冲天！"
+        },
+        {
+          "character": "narrator",
+          "text": "曹操大军灰飞烟灭，三国鼎立的格局就此奠定！"
+        }
+      ],
+      "intimacyEvent": {
+        "target": "zhugeliang",
+        "change": 10
+      },
+      "fameChange": 20,
+      "next": "three_kingdoms"
+    },
+    {
+      "id": "chibi_caocao",
+      "background": "bg_battle4.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你随曹操南征，见证了这场大战。"
+        },
+        {
+          "character": "narrator",
+          "text": "然而，东风一起，火船顺风而来……"
+        },
+        {
+          "character": "narrator",
+          "text": "曹军大败，你侥幸逃回北方。"
+        }
+      ],
+      "fameChange": -10,
+      "next": "three_kingdoms"
+    },
+    {
+      "id": "three_kingdoms",
+      "background": "bg_threekingdoms.png",
+      "yearEvent": 209,
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "赤壁之战后，三国鼎立的格局正式形成。"
+        },
+        {
+          "character": "narrator",
+          "text": "魏、蜀、吴三国割据一方，战火连绵。"
+        },
+        {
+          "character": "narrator",
+          "text": "📅 209年，你的人生将迎来新的篇章……"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🗺️ 打开地图自由探索",
+          "next": "map_three_kingdoms"
+        },
+        {
+          "text": "继续为理想而战",
+          "next": "ending_warrior"
+        },
+        {
+          "text": "功成身退，归隐山林",
+          "next": "ending_hermit"
+        },
+        {
+          "text": "经商致富，富贵一生",
+          "next": "ending_merchant"
+        }
+      ]
+    },
+    {
+      "id": "map_three_kingdoms",
+      "background": "bg_map.png",
+      "showMap": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【三 国 地 图 - 自由探索】"
+        },
+        {
+          "character": "narrator",
+          "text": "当前年份：209年（三国鼎立）"
+        },
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 魏国：许昌（曹操）、邺城、南皮"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 蜀国：成都（刘备、诸葛亮）、樊城（关羽）"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 吴国：建业（孙权）、柴桑、吴城"
+        },
+        {
+          "character": "narrator",
+          "text": "📍 其他：洛阳、荆州、北海等"
+        }
+      ],
+      "choices": [
+        {
+          "text": "探索 成都 - 蜀汉都城",
+          "next": "explore_chengdu"
+        },
+        {
+          "text": "探索 许昌 - 魏国大本营",
+          "next": "explore_xuchang"
+        },
+        {
+          "text": "探索 建业 - 东吴都城",
+          "next": "explore_jianye_full"
+        },
+        {
+          "text": "探索 樊城 - 关羽驻守",
+          "next": "explore_fancheng"
+        },
+        {
+          "text": "结束探索，继续主线",
+          "next": "ending_warrior"
+        }
+      ]
+    },
+    {
+      "id": "explore_chengdu",
+      "background": "bg_chengdu.png",
+      "cityEvent": "chengdu",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到成都，天府之国，蜀汉都城。"
+        },
+        {
+          "character": "narrator",
+          "text": "城中百姓安乐，秩序井然。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "拜访诸葛亮",
+          "next": "chengdu_zhugeliang"
+        },
+        {
+          "text": "招募蜀汉将领",
+          "next": "chengdu_recruit_shu"
+        },
+        {
+          "text": "在城中发展势力",
+          "next": "chengdu_develop"
+        },
+        {
+          "text": "返回",
+          "next": "map_three_kingdoms"
+        }
+      ]
+    },
+    {
+      "id": "chengdu_zhugeliang",
+      "background": "bg_chengdu.png",
+      "intimacyEvent": {
+        "target": "zhugeliang",
+        "change": 20
+      },
+      "dialogues": [
+        {
+          "character": "zhugeliang",
+          "text": "（诸葛亮）这是我的阵法心得，与先生共勉。"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 诸葛亮传授你【八阵图】要义！【阵法】升级！"
+        }
+      ],
+      "skillLearn": "zhenfa",
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "chengdu_recruit_shu",
+      "background": "bg_chengdu.png",
+      "skillCheck": {
+        "skill": "sheshipu",
+        "dc": 70
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你尝试招募蜀汉名将……"
+        }
+      ],
+      "outcomes": {
+        "win": "chengdu_recruit_win",
+        "lose": "chengdu_recruit_lose"
+      }
+    },
+    {
+      "id": "chengdu_recruit_win",
+      "background": "bg_chengdu.png",
+      "fameChange": 20,
+      "intimacyEvent": {
+        "target": "zhaoyun",
+        "change": 30
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你成功说服赵云与你结为盟友！"
+        },
+        {
+          "character": "zhaoyun",
+          "text": "（赵云）子龙愿追随阁下，共创大业！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "chengdu_recruit_lose",
+      "background": "bg_chengdu.png",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "蜀汉众将忠于刘备，招募未能成功。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "chengdu_develop",
+      "background": "bg_chengdu.png",
+      "wealthChange": 30,
+      "fameChange": 10,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你在成都发展势力，积累了不少财富和声望。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "explore_xuchang",
+      "background": "bg_xuchang.png",
+      "cityEvent": "xuchang",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到许昌，曹操的大本营。"
+        },
+        {
+          "character": "narrator",
+          "text": "城中繁华，人才济济。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "拜访曹操",
+          "next": "xuchang_caocao"
+        },
+        {
+          "text": "挑战魏国猛将",
+          "next": "xuchang_fight"
+        },
+        {
+          "text": "在魏国发展",
+          "next": "xuchang_develop"
+        },
+        {
+          "text": "返回",
+          "next": "map_three_kingdoms"
+        }
+      ]
+    },
+    {
+      "id": "xuchang_caocao",
+      "background": "bg_xuchang.png",
+      "intimacyEvent": {
+        "target": "caocao",
+        "change": 20
+      },
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）先生来啦！孟德甚是想念！"
+        },
+        {
+          "character": "caocao",
+          "text": "（曹操）魏国正值用人之际，先生可愿留下？"
+        }
+      ],
+      "choices": [
+        {
+          "text": "加入魏国",
+          "next": "xuchang_join_wei"
+        },
+        {
+          "text": "保持独立",
+          "next": "map_three_kingdoms"
+        }
+      ]
+    },
+    {
+      "id": "xuchang_join_wei",
+      "background": "bg_xuchang.png",
+      "factionJoin": "wei",
+      "skillLearn": "zhenfa",
+      "dialogues": [
+        {
+          "character": "caocao",
+          "text": "（曹操）好！有先生相助，大业可期！"
+        },
+        {
+          "character": "narrator",
+          "text": "你正式成为魏国重臣！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 获得曹操赐予的兵法典籍！【阵法】升级！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "xuchang_fight",
+      "background": "bg_battle3.png",
+      "battleEvent": {
+        "enemy": "xuchu",
+        "desc": "与许褚切磋",
+        "enemyForce": 9
+      },
+      "outcomes": {
+        "win": "xuchang_fight_win",
+        "lose": "xuchang_fight_lose",
+        "draw": "xuchang_fight_draw"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "xuchang_fight_win",
+      "background": "bg_xuchang.png",
+      "fameChange": 25,
+      "skillLearn": "blade",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你击败了许褚！魏国震动！"
+        },
+        {
+          "character": "xuchu",
+          "text": "（许褚）好武艺！俺老许服了！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "xuchang_fight_lose",
+      "background": "bg_xuchang.png",
+      "healthChange": -25,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "许褚力大无穷，你不是对手。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "xuchang_fight_draw",
+      "background": "bg_xuchang.png",
+      "fameChange": 10,
+      "intimacyEvent": {
+        "target": "xuchu",
+        "change": 15
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与许褚势均力敌，互相佩服。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "xuchang_develop",
+      "background": "bg_xuchang.png",
+      "wealthChange": 40,
+      "fameChange": 15,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你在许昌发展势力，生意越做越大。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "explore_jianye_full",
+      "background": "bg_jianye.png",
+      "cityEvent": "jianye",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到建业，东吴都城。"
+        },
+        {
+          "character": "narrator",
+          "text": "水军强盛，商业繁荣。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "拜访孙权",
+          "next": "jianye_full_sunquan"
+        },
+        {
+          "text": "加入东吴",
+          "next": "jianye_join_wu"
+        },
+        {
+          "text": "返回",
+          "next": "map_three_kingdoms"
+        }
+      ]
+    },
+    {
+      "id": "jianye_full_sunquan",
+      "background": "bg_jianye.png",
+      "intimacyEvent": {
+        "target": "sunquan",
+        "change": 20
+      },
+      "dialogues": [
+        {
+          "character": "sunquan",
+          "text": "（孙权）先生远道而来，有何见教？"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "jianye_join_wu",
+      "background": "bg_jianye.png",
+      "factionJoin": "wu",
+      "skillLearn": "horse",
+      "dialogues": [
+        {
+          "character": "sunquan",
+          "text": "（孙权）好！东吴正是用人之时！"
+        },
+        {
+          "character": "narrator",
+          "text": "你成为东吴重臣！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得东吴【骑术】！骑兵战斗力提升！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "explore_fancheng",
+      "background": "bg_fancheng.png",
+      "cityEvent": "fancheng",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你来到樊城，关羽正在此驻守。"
+        },
+        {
+          "character": "narrator",
+          "text": "关羽威震华夏，无人敢近。"
+        }
+      ],
+      "choices": [
+        {
+          "text": "拜见关羽",
+          "next": "fancheng_guanyu"
+        },
+        {
+          "text": "挑战关羽（危险！）",
+          "next": "fancheng_fight"
+        },
+        {
+          "text": "返回",
+          "next": "map_three_kingdoms"
+        }
+      ]
+    },
+    {
+      "id": "fancheng_guanyu",
+      "background": "bg_fancheng.png",
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 25
+      },
+      "dialogues": [
+        {
+          "character": "guanyu",
+          "text": "（关羽）云长在此，先生有何贵干？"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）我兄刘备对先生颇为欣赏。"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "fancheng_fight",
+      "background": "bg_battle4.png",
+      "battleEvent": {
+        "enemy": "guanyu",
+        "desc": "与关羽单挑",
+        "enemyForce": 10
+      },
+      "outcomes": {
+        "win": "fancheng_fight_win",
+        "lose": "fancheng_fight_lose",
+        "draw": "fancheng_fight_draw"
+      },
+      "dialogues": []
+    },
+    {
+      "id": "fancheng_fight_win",
+      "background": "bg_fancheng.png",
+      "fameChange": 50,
+      "itemGet": "blade_book",
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你竟然与关羽战成平手！"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）好武艺！关某平生仅见！"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）这是我的刀法心得，与先生切磋！"
+        },
+        {
+          "character": "narrator",
+          "text": "📚 习得【春秋刀法】！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "fancheng_fight_lose",
+      "background": "bg_battle4.png",
+      "healthChange": -50,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "关羽青龙偃月刀威力无穷，你身受重创！"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）念你勇气可嘉，饶你一命！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "fancheng_fight_draw",
+      "background": "bg_fancheng.png",
+      "fameChange": 30,
+      "intimacyEvent": {
+        "target": "guanyu",
+        "change": 20
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你与关羽大战百合，不分胜负！"
+        },
+        {
+          "character": "guanyu",
+          "text": "（关羽）痛快！君是劲敌！"
+        }
+      ],
+      "next": "map_three_kingdoms"
+    },
+    {
+      "id": "ending_warrior",
+      "background": "bg_ending_hero.png",
+      "showEnding": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【结局：名将传奇】"
+        }
+      ],
+      "ending": {
+        "type": "good",
+        "title": "名将传奇",
+        "image": "bg_ending_hero.png",
+        "summary": "你在这风起云涌的三国时代，凭借武勇和智慧，从一介平民成长为名震天下的名将。无论是在黄巾之乱中平叛立功，还是在官渡、赤壁等大战中建功立业，你的名字都被后人传颂。你或许选择了一方诸侯效力，或许自立门户开创基业，但无论如何，你都在这乱世中留下了属于自己的传奇。"
+      },
+      "next": "game_over"
+    },
+    {
+      "id": "ending_hermit",
+      "background": "bg_ending_hermit.png",
+      "showEnding": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【结局：归隐山林】"
+        }
+      ],
+      "ending": {
+        "type": "normal",
+        "title": "归隐山林",
+        "image": "bg_ending_hermit.png",
+        "summary": "看透了乱世的纷争，你选择了功成身退。在山水之间，你放下了刀剑，拿起书卷，过着平淡而安宁的生活。虽有遗憾未能一展抱负，但在这世外桃源中，你找到了内心的平静。偶尔有故人来访，提起当年的往事，你只是淡然一笑。归隐，未尝不是一种圆满。"
+      },
+      "next": "game_over"
+    },
+    {
+      "id": "ending_merchant",
+      "background": "bg_ending_merchant.png",
+      "showEnding": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【结局：富甲天下】"
+        }
+      ],
+      "ending": {
+        "type": "good",
+        "title": "富甲天下",
+        "image": "bg_ending_merchant.png",
+        "summary": "你以商人的精明和远见，在乱世中积累了大量财富。你穿梭于魏、蜀、吴三国之间，凭借过人的头脑和广泛的人脉，成为了富甲一方的大商人。虽然战火纷飞，但你的商队依然畅通无阻；虽然群雄争霸，但各方势力都要给你几分薄面。在经济上，你才是这个时代真正的赢家。"
+      },
+      "next": "game_over"
+    },
+    {
+      "id": "ending_dongzhuo_death",
+      "background": "bg_ending.png",
+      "showEnding": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【结局：壮志未酬】"
+        }
+      ],
+      "ending": {
+        "type": "bad",
+        "title": "壮志未酬",
+        "image": "bg_ending.png",
+        "summary": "你因董卓余党的牵连，在混乱中丢了性命。追随暴君的下场，往往都是如此。乱世之中，一步走错，便是万劫不复。人生的选择，何其重要！这便是你留给后人的教训——在乱世中，务必慎之又慎，选择正确的道路。"
+      },
+      "next": "game_over"
+    },
+    {
+      "id": "game_over",
+      "background": "bg_ending.png",
+      "showGameOver": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【游戏结束】"
+        },
+        {
+          "character": "narrator",
+          "text": "感谢游玩《三国人生模拟器 V4.0》！"
+        },
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🔄 重新开始",
+          "next": "start"
+        },
+        {
+          "text": "📜 查看人物志",
+          "next": "character_records"
+        }
+      ]
+    },
+    {
+      "id": "character_records",
+      "background": "bg_start.png",
+      "showCharacterRecords": true,
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "═══════════════════════════════"
+        },
+        {
+          "character": "narrator",
+          "text": "【人物志 - 你在这乱世中的足迹】"
+        }
+      ],
+      "choices": [
+        {
+          "text": "🔄 重新开始",
+          "next": "start"
+        }
+      ]
+    },
+    {
+      "id": "conquest_test",
+      "background": "bg_battle2.png",
+      "cityConquest": {
+        "city": "beihai",
+        "force": 6
+      },
+      "dialogues": [
+        {
+          "character": "narrator",
+          "text": "你决定进攻北海城，这里是孔融的领地。"
+        }
+      ],
+      "outcomes": {
+        "win": "main_story_scholar",
+        "lose": "main_story_scholar"
+      }
+    }
+  ],
+  "achievements": [
+    {
+      "id": "taoyuan",
+      "name": "桃园结义",
+      "desc": "与刘备、关羽、张飞都结为好友",
+      "condition": {
+        "intimacy": {
+          "liubei": 50,
+          "guanyu": 50,
+          "zhangfei": 50
+        }
+      }
+    },
+    {
+      "id": "wuzhong",
+      "name": "五虎上将",
+      "desc": "结识5位名将",
+      "condition": {
+        "intimacy_count": 5
+      }
+    },
+    {
+      "id": "sanqing",
+      "name": "三顾茅庐",
+      "desc": "与诸葛亮建立深厚友谊",
+      "condition": {
+        "intimacy": {
+          "zhugeliang": 80
+        }
+      }
+    },
+    {
+      "id": "shuangxu",
+      "name": "双雄会",
+      "desc": "与曹操和刘备都结为盟友",
+      "condition": {
+        "intimacy": {
+          "caocao": 50,
+          "liubei": 50
+        }
+      }
+    },
+    {
+      "id": "lvbu",
+      "name": "虎牢关",
+      "desc": "与吕布单挑并存活",
+      "condition": {
+        "encountered": "lvbu"
+      }
+    },
+    {
+      "id": "zhaoyun",
+      "name": "浑身是胆",
+      "desc": "与赵云结为战友",
+      "condition": {
+        "intimacy": {
+          "zhaoyun": 50
+        }
+      }
+    },
+    {
+      "id": "chibi",
+      "name": "赤壁风云",
+      "desc": "参与赤壁之战",
+      "condition": {
+        "visited": "chibi_battle"
+      }
+    },
+    {
+      "id": "guanyu_wu",
+      "name": "过关斩将",
+      "desc": "斩杀华雄或同等名将",
+      "condition": {
+        "defeated": [
+          "huashan"
+        ]
+      }
+    },
+    {
+      "id": "merchant_king",
+      "name": "富甲天下",
+      "desc": "财富值达到100",
+      "condition": {
+        "wealth": 100
+      }
+    },
+    {
+      "id": "famous_warrior",
+      "name": "名震天下",
+      "desc": "声望达到80",
+      "condition": {
+        "fame": 80
+      }
+    },
+    {
+      "id": "skill_master",
+      "name": "技能大师",
+      "desc": "习得5种以上技能",
+      "condition": {
+        "skills": 5
+      }
+    },
+    {
+      "id": "explorer",
+      "name": "天下漫游",
+      "desc": "探索10个以上城池",
+      "condition": {
+        "cities_explored": 10
+      }
+    },
+    {
+      "id": "collector",
+      "name": "收藏家",
+      "desc": "获得5件以上装备",
+      "condition": {
+        "items": 5
+      }
+    }
+  ],
+  "yearEvents": {
+    "184": "黄巾起义爆发，张角带领数十万起义军席卷九州",
+    "185": "朝廷派皇甫嵩、朱儁等将领镇压黄巾军，战局胶着",
+    "186": "黄巾起义被平定，但天下并未恢复太平，群雄开始割据",
+    "187": "袁绍、曹操等人因得罪十常侍被迫逃离洛阳",
+    "188": "朝廷任命刘焉为益州牧，开始实行州牧制度",
+    "189": "汉灵帝驾崩，何进召董卓进京诛杀宦官",
+    "190": "董卓废汉少帝，立汉献帝，各路诸侯组成讨董联盟",
+    "191": "董卓火烧洛阳迁都长安，关东诸侯讨董失败",
+    "192": "孙策借兵江东，开始建立自己的势力；王允设美人计除掉董卓",
+    "193": "李傕郭汜攻入长安，杀王允，汉献帝落入其手",
+    "194": "刘备投奔陶谦，陶谦三让徐州",
+    "195": "刘备领徐州牧，被吕布趁虚而入",
+    "196": "曹操迎汉献帝至许昌，挟天子以令诸侯",
+    "197": "袁术在寿春称帝，国号仲氏",
+    "198": "曹操联合刘备、吕布讨伐袁术，袁术战败",
+    "199": "曹操擒杀吕布，刘备暂时投靠曹操",
+    "200": "曹操在官渡与袁绍对峙，战局僵持",
+    "201": "孙策遇刺身亡，孙权继位统领江东",
+    "202": "袁绍官渡之战大败，实力大损",
+    "203": "曹操北征乌桓，大获全胜，基本统一北方",
+    "204": "孙权平定江东内部叛乱，稳固统治",
+    "205": "刘备投奔刘表，驻守新野",
+    "206": "曹操开始南下荆州，欲一统天下",
+    "207": "刘备三顾茅庐请出诸葛亮，诸葛亮献隆中对",
+    "208": "赤壁之战，孙刘联军火烧曹军，曹操北撤",
+    "209": "周瑜夺取荆州重镇，刘备借荆州立足",
+    "210": "周瑜病逝，鲁肃继任大都督",
+    "211": "刘备入蜀，协助刘璋防御张鲁",
+    "212": "刘备与刘璋决裂，开始夺取益州",
+    "213": "刘备包围成都，刘璋开城投降",
+    "214": "刘备占领益州，自称益州牧",
+    "215": "曹操进攻汉中，张鲁投降",
+    "216": "曹操进爵魏王，权倾朝野",
+    "217": "刘备与曹操争夺汉中，战事激烈",
+    "218": "定军山之战，黄忠阵斩夏侯渊",
+    "219": "刘备夺取汉中，自称汉中王；关羽水淹七军，威震华夏",
+    "220": "曹操病逝，曹丕继位；关羽败走麦城，被孙权擒杀",
+    "221": "曹丕废汉献帝，建立魏国，自称魏文帝；刘备建立蜀汉，称帝",
+    "222": "孙权向曹丕称臣，被封为吴王",
+    "223": "刘备伐吴，夷陵之战被陆逊火烧连营",
+    "224": "刘备病逝于白帝城，刘禅继位；诸葛亮辅政",
+    "225": "诸葛亮平定南中叛乱，七擒孟获",
+    "226": "诸葛亮上出师表，开始北伐",
+    "227": "诸葛亮北伐势如破竹，攻取武都、阴平",
+    "228": "街亭之战马谡失守，诸葛亮被迫退兵",
+    "229": "诸葛亮二次北伐，围攻陈仓",
+    "230": "诸葛亮三次北伐，夺取武都、阴平",
+    "231": "诸葛亮四次北伐，在五丈原与司马懿对峙",
+    "234": "诸葛亮病逝于五丈原，蜀汉北伐基本停止",
+    "235": "孙权不再向魏国称臣，两国交战",
+    "236": "司马懿开始掌权，架空曹氏宗亲",
+    "237": "曹叡病逝，曹芳继位，司马懿发动高平陵之变",
+    "238": "司马懿诛杀曹爽，完全控制朝政",
+    "239": "孙权正式称帝，建立吴国",
+    "240": "蜀汉费祎、蒋琬等人主政，休养生息",
+    "241": "魏国孙权、孙壹等人叛变投吴",
+    "242": "姜维开始北伐，但效果有限",
+    "243": "魏国内部动荡，司马懿之子司马师掌权",
+    "244": "孙权病逝，孙亮继位，权臣孙綝专权",
+    "245": "司马师废曹芳，立曹髦，魏国大权转入司马氏之手",
+    "246": "司马师病逝，其弟司马昭掌权",
+    "247": "姜维多次北伐，但无功而返",
+    "248": "吴国孙綝被杀，孙休继位",
+    "249": "曹髦不满司马昭专权，率兵讨伐，被杀",
+    "250": "司马昭立曹奂为帝，完全掌控魏国",
+    "251": "吴国孙休病逝，孙皓继位，昏庸残暴",
+    "252": "姜维最后一次北伐失败，蜀汉实力大损",
+    "253": "邓艾偷渡阴平，刘禅投降，蜀汉灭亡",
+    "254": "司马昭病逝，其子司马炎继位",
+    "255": "司马炎逼迫魏元帝禅让，建立晋朝",
+    "256": "西晋建立，准备统一全国",
+    "257": "东吴内部动乱，孙皓滥杀大臣",
+    "258": "晋国准备伐吴",
+    "259": "晋军进攻吴国，连战连捷",
+    "260": "晋军围困建业，孙皓投降，吴国灭亡",
+    "261": "天下一统，三国时代结束"
+  },
+  "cityOwnership": {
+    "luoyang": {
+      "owner": "汉献帝",
+      "faction": "汉",
+      "occupier": "汉献帝"
+    },
+    "changan": {
+      "owner": "汉献帝",
+      "faction": "汉",
+      "occupier": "汉献帝"
+    },
+    "chengdu": {
+      "owner": "刘璋",
+      "faction": "益州",
+      "occupier": "刘璋"
+    },
+    "jingzhou": {
+      "owner": "刘表",
+      "faction": "荆州",
+      "occupier": "刘表"
+    },
+    "xiangyang": {
+      "owner": "刘表",
+      "faction": "荆州",
+      "occupier": "刘表"
+    },
+    "fancheng": {
+      "owner": "刘表",
+      "faction": "荆州",
+      "occupier": "关羽"
+    },
+    "wancheng": {
+      "owner": "张绣",
+      "faction": "张绣",
+      "occupier": "张绣"
+    },
+    "beihai": {
+      "owner": "孔融",
+      "faction": "北海",
+      "occupier": "孔融"
+    },
+    "xuzhou": {
+      "owner": "陶谦",
+      "faction": "徐州",
+      "occupier": "陶谦"
+    },
+    "xiaopei": {
+      "owner": "陶谦",
+      "faction": "徐州",
+      "occupier": "陶谦"
+    },
+    "xuchang": {
+      "owner": "曹操",
+      "faction": "魏",
+      "occupier": "曹操"
+    },
+    "shouchun": {
+      "owner": "袁术",
+      "faction": "袁",
+      "occupier": "袁术"
+    },
+    "jianye": {
+      "owner": "孙权",
+      "faction": "吴",
+      "occupier": "孙权"
+    },
+    "wucheng": {
+      "owner": "孙权",
+      "faction": "吴",
+      "occupier": "孙策"
+    },
+    "chaizhu": {
+      "owner": "孙权",
+      "faction": "吴",
+      "occupier": "甘宁"
+    },
+    "runan": {
+      "owner": "黄巾余党",
+      "faction": "黄巾",
+      "occupier": "黄巾余党"
+    },
+    "nanpi": {
+      "owner": "袁绍",
+      "faction": "袁",
+      "occupier": "袁绍"
+    },
+    "ye": {
+      "owner": "袁绍",
+      "faction": "袁",
+      "occupier": "袁绍"
+    },
+    "pingyuan": {
+      "owner": "刘备",
+      "faction": "蜀",
+      "occupier": "刘备"
+    },
+    "puyang": {
+      "owner": "吕布",
+      "faction": "吕",
+      "occupier": "吕布"
+    },
+    "zhang": {
+      "owner": "张绣",
+      "faction": "张绣",
+      "occupier": "张绣"
+    },
+    "yunnan": {
+      "owner": "孟获",
+      "faction": "南蛮",
+      "occupier": "孟获"
+    },
+    "juliao": {
+      "owner": "张角",
+      "faction": "黄巾",
+      "occupier": "张角"
+    },
+    "shanyang": {
+      "owner": "无",
+      "faction": "无",
+      "occupier": "山贼"
+    }
+  },
+  "npcSystem": {
+    "lords": {
+      "caocao": {
+        "name": "曹操",
+        "faction": "魏",
+        "martial": 5,
+        "intel": 9,
+        "charm": 8,
+        "wealth": 80,
+        "luck": 8,
+        "immortal": true,
+        "ownedCities": [
+          "xuchang",
+          "wancheng"
+        ]
+      },
+      "liubei": {
+        "name": "刘备",
+        "faction": "蜀",
+        "martial": 5,
+        "intel": 6,
+        "charm": 9,
+        "wealth": 40,
+        "luck": 7,
+        "immortal": true,
+        "ownedCities": [
+          "chengdu"
+        ]
+      },
+      "sunquan": {
+        "name": "孙权",
+        "faction": "吴",
+        "martial": 5,
+        "intel": 7,
+        "charm": 8,
+        "wealth": 70,
+        "luck": 7,
+        "immortal": true,
+        "ownedCities": [
+          "chaizhu",
+          "jianye",
+          "wucheng"
+        ]
+      },
+      "dongzhuo": {
+        "name": "董卓",
+        "faction": "董",
+        "martial": 8,
+        "intel": 5,
+        "charm": 4,
+        "wealth": 90,
+        "luck": 6,
+        "immortal": true,
+        "ownedCities": [
+          "changan",
+          "luoyang"
+        ]
+      },
+      "mateng": {
+        "name": "马腾",
+        "faction": "马",
+        "martial": 7,
+        "intel": 5,
+        "charm": 6,
+        "wealth": 50,
+        "luck": 6,
+        "immortal": true,
+        "ownedCities": [
+          "xiliang"
+        ]
+      },
+      "gongsunzan": {
+        "name": "公孙瓒",
+        "faction": "公孙",
+        "martial": 8,
+        "intel": 6,
+        "charm": 5,
+        "wealth": 45,
+        "luck": 5,
+        "immortal": true,
+        "ownedCities": [
+          "beiping",
+          "youzhou"
+        ]
+      },
+      "zhangjiao": {
+        "name": "张角",
+        "faction": "黄巾",
+        "martial": 5,
+        "intel": 7,
+        "charm": 8,
+        "wealth": 30,
+        "luck": 6,
+        "immortal": true,
+        "ownedCities": [
+          "julu"
+        ]
+      }
+    },
+    "cities": {
+      "changan": {
+        "name": "长安",
+        "position": "northwest",
+        "owner": "dongzhuo",
+        "prosperity": 60
+      },
+      "luoyang": {
+        "name": "洛阳",
+        "position": "north",
+        "owner": "dongzhuo",
+        "prosperity": 80
+      },
+      "xiliang": {
+        "name": "西凉",
+        "position": "northwest",
+        "owner": "mateng",
+        "prosperity": 50
+      },
+      "xuchang": {
+        "name": "许昌",
+        "position": "center",
+        "owner": "caocao",
+        "prosperity": 70
+      },
+      "wancheng": {
+        "name": "宛城",
+        "position": "center",
+        "owner": "caocao",
+        "prosperity": 65
+      },
+      "nanpi": {
+        "name": "南皮",
+        "position": "north",
+        "owner": null,
+        "prosperity": 55
+      },
+      "runan": {
+        "name": "汝南",
+        "position": "center",
+        "owner": null,
+        "prosperity": 60
+      },
+      "sishui": {
+        "name": "汜水关",
+        "position": "north",
+        "owner": null,
+        "prosperity": 40
+      },
+      "chengdu": {
+        "name": "成都",
+        "position": "southwest",
+        "owner": "liubei",
+        "prosperity": 75
+      },
+      "hanzhong": {
+        "name": "汉中",
+        "position": "southwest",
+        "owner": null,
+        "prosperity": 55
+      },
+      "jingzhou": {
+        "name": "荆州",
+        "position": "center",
+        "owner": null,
+        "prosperity": 70
+      },
+      "fancheng": {
+        "name": "樊城",
+        "position": "center",
+        "owner": null,
+        "prosperity": 60
+      },
+      "xiangyang": {
+        "name": "襄阳",
+        "position": "center",
+        "owner": null,
+        "prosperity": 65
+      },
+      "jianye": {
+        "name": "建业",
+        "position": "southeast",
+        "owner": "sunquan",
+        "prosperity": 75
+      },
+      "chaizhu": {
+        "name": "柴桑",
+        "position": "southeast",
+        "owner": "sunquan",
+        "prosperity": 60
+      },
+      "wucheng": {
+        "name": "吴城",
+        "position": "southeast",
+        "owner": "sunquan",
+        "prosperity": 65
+      },
+      "jiangxia": {
+        "name": "江夏",
+        "position": "southeast",
+        "owner": null,
+        "prosperity": 55
+      },
+      "bingzhou": {
+        "name": "并州",
+        "position": "west",
+        "owner": null,
+        "prosperity": 45
+      },
+      "beiping": {
+        "name": "北平",
+        "position": "north",
+        "owner": "gongsunzan",
+        "prosperity": 55
+      },
+      "youzhou": {
+        "name": "幽州",
+        "position": "north",
+        "owner": "gongsunzan",
+        "prosperity": 50
+      },
+      "julu": {
+        "name": "巨鹿",
+        "position": "north",
+        "owner": "zhangjiao",
+        "prosperity": 50
+      },
+      "beihai": {
+        "name": "北海",
+        "position": "east",
+        "owner": null,
+        "prosperity": 55
+      },
+      "shanyang": {
+        "name": "山阳",
+        "position": "center",
+        "owner": null,
+        "prosperity": 50
+      }
+    }
+  }
+}</script></head>
+<body>
+    <!-- 错误显示区域 -->
+    <div id="error-display" style="position: fixed; bottom: 20px; right: 20px; background: rgba(255, 0, 0, 0.9); color: white; padding: 15px; border-radius: 5px; font-size: 12px; max-width: 300px; display: none; z-index: 9999; word-wrap: break-word;">
+        <strong>错误信息：</strong>
+        <div id="error-message"></div>
+    </div>
+
+    <div id="game-container">
+        <!-- 顶部状态栏 -->
+        <div id="status-bar">
+            <div id="player-status">
+                <span id="player-age">年龄: 15岁</span>
+                <span id="game-year">历史年: 184年</span>
+                <span id="player-job">职业: 士大夫</span>
+                <span id="player-faction">阵营: 无 | 独立</span>
+            </div>
+        </div>
+        
+        <!-- 背景图 -->
+        <img id="background" src="" alt="背景">
+        
+        <!-- 人物立绘 -->
+        <div id="character-sprite-container">
+            <img id="character-sprite" src="" alt="人物">
+        </div>
+        
+        <!-- 对话框 -->
+        <div id="dialogue-box">
+            <div id="character-name"></div>
+            <div id="dialogue-text"></div>
+            <div id="click-indicator">▼ 点击继续</div>
+        </div>
+        
+        <!-- 选项容器 -->
+        <div id="choices-container"></div>
+        
+        <!-- 标题画面 -->
+        <div id="title-screen">
+            <h1 id="game-title">三国人生模拟器 V4.0</h1>
+            <p id="game-desc">在三国时代活出你的人生，体验黄巾起义到三国鼎立的波澜壮阔。V4版本新增开放式沙盒世界、NPC独立系统、城池归属、背景音乐！</p>
+            <!-- 加载进度条 -->
+        <div id="loading-container">
+            <div id="loading-text">游戏数据加载中...</div>
+            <div id="loading-progress">
+                <div id="loading-bar"></div>
+            </div>
+            <div id="loading-percent">0%</div>
+            
+            <!-- 加载状态显示（用于调试） -->
+            <div id="loading-status" style="margin-top: 10px; font-size: 11px; color: rgba(255,255,255,0.5); text-align: left; width: 80%; max-height: 100px; overflow-y: auto;">
+                等待初始化...
+            </div>
+        
+        <div id="force-refresh" style="display: none; margin-top: 20px;">
+            <button onclick="location.reload(true)" style="background: #FF6B6B; color: white; border: none; padding: 10px 30px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 14px;">
+                🔄 强制刷新页面
+            </button>
+        </div>
+        
+        <!-- 调试按钮：手动显示开始按钮 -->
+        <div id="debug-controls" style="display: none; margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px;">
+            <div style="color: rgba(255,255,255,0.7); font-size: 12px; margin-bottom: 10px;">调试工具：</div>
+            <button onclick="debugShowStartBtn()" style="background: #4CAF50; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; margin-right: 10px;">
+                🔧 手动显示开始按钮
+            </button>
+            <button onclick="console.log('当前状态:', {loadingContainer, startBtn, GAME_DATA, gameState})" style="background: #2196F3; color: white; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px;">
+                📋 打印状态
+            </button>
+        </div>
+        
+        <button id="start-btn" style="display: none;">开始游戏</button>
+        </div>
+        
+        <!-- 结局画面 -->
+        <div id="ending-screen">
+            <div id="ending-image-container">
+                <img id="ending-image" src="" alt="结局画面">
+            </div>
+            <div id="ending-type"></div>
+            <div id="ending-title"></div>
+            <div id="ending-summary"></div>
+            <button id="restart-btn">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏数据（由生成脚本注入）
+        
+        // 更新进度条
+        function updateProgress(percent, text) {
+            console.log(`📊 进度: ${percent}% - ${text}`);
+            
+            // 更新状态显示面板
+            const statusPanel = document.getElementById('loading-status');
+            if (statusPanel) {
+                const time = new Date().toLocaleTimeString();
+                statusPanel.innerHTML += `<div>[${time}] ${percent}% - ${text}</div>`;
+                statusPanel.scrollTop = statusPanel.scrollHeight;
+            }
+            
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingPercent = document.getElementById('loading-percent');
+            const loadingText = document.getElementById('loading-text');
+            
+            if (loadingBar) {
+                loadingBar.style.width = percent + '%';
+            } else {
+                console.error('❌ loading-bar元素未找到');
+            }
+            
+            if (loadingPercent) {
+                loadingPercent.textContent = percent + '%';
+            } else {
+                console.error('❌ loading-percent元素未找到');
+            }
+            
+            if (loadingText) {
+                if (text) loadingText.textContent = text;
+            } else {
+                console.error('❌ loading-text元素未找到');
+            }
+        }
+        
+        // 全局DOM元素变量（在DOMContentLoaded之后初始化）
+        let loadingContainer = null;
+        let startBtn = null;
+        let endingScreen = null;
+        let titleScreen = null;
+        let background = null;
+        let dialogueText = null;
+        let dialogueBox = null;
+        let characterName = null;
+        let characterSprite = null;
+        let characterSpriteContainer = null;
+        let clickIndicator = null;
+        let dialogueContainer = null;
+        let gameContainer = null;
+        let gameTitle = null;
+        let gameDesc = null;
+        let endingImageContainer = null;
+        let endingImage = null;
+        let endingType = null;
+        let endingTitle = null;
+        let endingSummary = null;
+        let restartBtn = null;
+        let statusBar = null;
+        let playerStatus = null;
+
+        
+        // 角色立绘映射
+        const SPRITES = {
+            'sprite_caocao': 'images/characters/caocao.jpg',
+            'sprite_liubei': 'images/characters/liubei.jpg',
+            'sprite_sunquan': 'images/characters/sunquan.jpg',
+            'sprite_zhugeliang': 'images/characters/liubei.jpg',
+            'sprite_guanyu': 'images/characters/guanyu.jpg',
+            'sprite_zhangfei': 'images/characters/zhangfei.jpg',
+            'sprite_zhaoyun': 'images/characters/guanyu.jpg',
+            'sprite_lvbu': 'images/characters/caocao.jpg',
+            'sprite_diaochan': 'images/characters/liubei.jpg',
+            'sprite_dongzhuo': 'images/characters/dongzhuo.jpg',
+            'sprite_zhangjiao': 'images/characters/zhangjiao.jpg',
+            'sprite_simayi': 'images/characters/caocao.jpg',
+            'sprite_zhouyu': 'images/characters/sunquan.jpg',
+            'sprite_taishici': 'images/characters/guanyu.jpg',
+            'sprite_ganning': 'images/characters/zhangfei.jpg',
+            'sprite_huanggai': 'images/characters/guanyu.jpg',
+            'sprite_xuchu': 'images/characters/zhangfei.jpg',
+            'sprite_zhangliao': 'images/characters/guanyu.jpg',
+            'sprite_sunce': 'images/characters/sunquan.jpg'
+        };
+        
+        // 背景图片映射
+        const BACKGROUNDS = {
+            'bg_start.png': 'images/backgrounds/bg_start.jpg',
+            'bg_scholar.png': 'images/backgrounds/bg_scholar.jpg',
+            'bg_refugee.png': 'images/backgrounds/bg_scholar.jpg',
+            'bg_merchant.png': 'images/backgrounds/bg_market_new.jpg',
+            'bg_camp.png': 'images/backgrounds/bg_battle1.jpg',
+            'bg_youth.png': 'images/backgrounds/bg_xuchang_new.jpg',
+            'bg_map.png': 'images/backgrounds/bg_xuchang_new.jpg',
+            'bg_luoyang.png': 'images/backgrounds/bg_luoyang.jpg',
+            'bg_road.png': 'images/backgrounds/bg_forest_new.jpg',
+            'bg_battle1.png': 'images/backgrounds/bg_battle1.jpg',
+            'bg_battle2.png': 'images/backgrounds/bg_battle2_new.jpg',
+            'bg_battle3.png': 'images/backgrounds/bg_battle1.jpg',
+            'bg_battle4.png': 'images/backgrounds/bg_battle2_new.jpg',
+            'bg_market.png': 'images/backgrounds/bg_market_new.jpg',
+            'bg_jingzhou.png': 'images/backgrounds/bg_chengdu_new.jpg',
+            'bg_chaizhu.png': 'images/backgrounds/bg_chengdu_new.jpg',
+            'bg_jianye.png': 'images/backgrounds/bg_jianye_new.jpg',
+            'bg_chengdu.png': 'images/backgrounds/bg_chengdu.jpg',
+            'bg_changan.png': 'images/backgrounds/bg_changan_new.jpg',
+            'bg_academy.png': 'images/backgrounds/bg_study_new.jpg',
+            'bg_beihai.png': 'images/backgrounds/bg_chengdu_new.jpg',
+            'bg_nanpi.png': 'images/backgrounds/bg_river_new.jpg',
+            'bg_fancheng.png': 'images/backgrounds/bg_river_new.jpg',
+            'bg_runian.png': 'images/backgrounds/bg_chengdu_new.jpg',
+            'bg_sishui.png': 'images/backgrounds/bg_forest_new.jpg',
+            'bg_shanyang.png': 'images/backgrounds/bg_xuchang_new.jpg',
+            'bg_xuchang.png': 'images/backgrounds/bg_xuchang_new.jpg',
+            'bg_yamen.png': 'images/backgrounds/bg_xuchang_new.jpg',
+            'bg_ending.png': 'images/backgrounds/bg_start.jpg',
+            'bg_ending_hero.png': 'images/backgrounds/bg_changan_new.jpg',
+            'bg_ending_merchant.png': 'images/backgrounds/bg_market_new.jpg',
+            'bg_ending_hermit.png': 'images/backgrounds/bg_forest_new.jpg',
+            'bg_threekingdoms.png': 'images/backgrounds/bg_changan_new.jpg',
+            'bg_default.jpg': 'images/backgrounds/bg_start.jpg',
+            'bg_default.png': 'images/backgrounds/bg_start.jpg'
+        };
+        
+        // 角色名称映射
+        const characterNames = {
+            'narrator': '',
+            'caocao': '曹操',
+            'liubei': '刘备',
+            'sunquan': '孙权',
+            'zhugeliang': '诸葛亮',
+            'guanyu': '关羽',
+            'zhangfei': '张飞',
+            'zhaoyun': '赵云',
+            'lvbu': '吕布',
+            'diaochan': '貂蝉',
+            'dongzhuo': '董卓',
+            'zhangjiao': '张角',
+            'simayi': '司马懿',
+            'zhouyu': '周瑜',
+            'taishici': '太史慈',
+            'ganning': '甘宁',
+            'huanggai': '黄盖',
+            'xuchu': '徐楚',
+            'zhangliao': '张辽',
+            'sunce': '孙策'
+        };
+        
+        // 角色颜色映射
+        const characterColors = {
+            'narrator': '#CCCCCC',
+            'caocao': '#FFD700',
+            'liubei': '#87CEEB',
+            'sunquan': '#98FB98',
+            'zhugeliang': '#DDA0DD',
+            'guanyu': '#32CD32',
+            'zhangfei': '#FFA500',
+            'zhaoyun': '#00CED1',
+            'lvbu': '#FF4500',
+            'diaochan': '#FF69B4',
+            'dongzhuo': '#8B0000',
+            'zhangjiao': '#FFFF00',
+            'simayi': '#9370DB',
+            'zhouyu': '#FF6347',
+            'taishici': '#4682B4',
+            'ganning': '#FFDAB9',
+            'huanggai': '#F0E68C',
+            'xuchu': '#DEB887',
+            'zhangliao': '#FFE4B5',
+            'sunce': '#E6E6FA'
+        };
+        
+        // 打字动画状态
+        let isAnimating = false;
+        
+                let choicesContainer = null;
+
+        // 调试函数：手动显示开始按钮
+        function debugShowStartBtn() {
+            console.log('🔧 调试：手动显示开始按钮');
+            
+            // 重新初始化DOM元素
+            initDOMElements();
+            
+            // 手动调用showStartButton
+            showStartButton();
+            
+            // 显示调试信息
+            console.log('调试信息：');
+            console.log('  - loadingContainer:', loadingContainer);
+            console.log('  - startBtn:', startBtn);
+            console.log('  - startBtn.style.display:', startBtn ? startBtn.style.display : 'null');
+            console.log('  - GAME_DATA:', GAME_DATA);
+        }
+        
+        // 显示开始按钮
+        function showStartButton() {
+            console.log('📱 showStartButton 被调用');
+            console.log('  - loadingContainer:', loadingContainer);
+            console.log('  - startBtn:', startBtn);
+            console.log('  - titleScreen:', titleScreen);
+            console.log('  - startBtn style display:', startBtn ? startBtn.style.display : 'null');
+            
+            // 更新状态面板
+            const statusPanel = document.getElementById('loading-status');
+            if (statusPanel) {
+                const time = new Date().toLocaleTimeString();
+                const btnStatus = startBtn ? '✓' : '✗';
+                statusPanel.innerHTML += `<div>[${time}] 🎯 显示开始按钮 ${btnStatus}</div>`;
+                statusPanel.scrollTop = statusPanel.scrollHeight;
+            }
+            
+            // 隐藏加载容器
+            if (loadingContainer) {
+                loadingContainer.style.display = 'none';
+                console.log('✓ 隐藏加载容器');
+            }
+            
+            // 将开始按钮移动到标题屏幕（因为start-btn原本在loading-container内）
+            if (titleScreen && startBtn && startBtn.parentElement !== titleScreen) {
+                titleScreen.appendChild(startBtn);
+                console.log('✓ 将开始按钮移动到标题屏幕');
+            }
+            
+            // 确保标题屏幕可见
+            if (titleScreen) {
+                titleScreen.style.display = 'flex';
+                console.log('✓ 确保标题屏幕可见');
+            }
+            
+            // 显示开始按钮
+            if (startBtn) {
+                startBtn.style.display = 'block';
+                startBtn.style.position = 'static';
+                startBtn.style.visibility = 'visible';
+                startBtn.style.opacity = '1';
+                startBtn.style.transform = 'translateY(0)';
+                console.log('✓ 显示开始按钮');
+                console.log('  - startBtn.style.display:', startBtn.style.display);
+                console.log('  - startBtn.offsetWidth:', startBtn.offsetWidth);
+                console.log('  - startBtn.parentElement:', startBtn.parentElement ? startBtn.parentElement.id : 'null');
+            } else {
+                console.error('❌ startBtn 为 null，无法显示开始按钮');
+                showError('开始按钮元素未找到，请刷新页面重试');
+                
+                // 强制显示调试工具
+                const debugControls = document.getElementById('debug-controls');
+                if (debugControls) {
+                    debugControls.style.display = 'block';
+                }
+            }
+        }
+        
+        // 初始化DOM元素
+        function initDOMElements() {
+            console.log('🔧 初始化DOM元素...');
+            
+            // 添加状态更新
+            const statusPanel = document.getElementById('loading-status');
+            if (statusPanel) {
+                const time = new Date().toLocaleTimeString();
+                statusPanel.innerHTML += `<div>[${time}] 🔧 初始化DOM元素...</div>`;
+                statusPanel.scrollTop = statusPanel.scrollHeight;
+            }
+            
+            loadingContainer = document.getElementById('loading-container');
+            startBtn = document.getElementById('start-btn');
+            endingScreen = document.getElementById('ending-screen');
+            titleScreen = document.getElementById('title-screen');
+            background = document.getElementById('background');
+            dialogueText = document.getElementById('dialogue-text');
+            dialogueBox = document.getElementById('dialogue-box');
+            characterName = document.getElementById('character-name');
+            characterSprite = document.getElementById('character-sprite');
+            characterSpriteContainer = document.getElementById('character-sprite-container');
+            clickIndicator = document.getElementById('click-indicator');
+            dialogueContainer = document.getElementById('dialogue-container');
+            gameContainer = document.getElementById('game-container');
+            gameTitle = document.getElementById('game-title');
+            gameDesc = document.getElementById('game-desc');
+            endingImageContainer = document.getElementById('ending-image-container');
+            endingImage = document.getElementById('ending-image');
+            endingType = document.getElementById('ending-type');
+            endingTitle = document.getElementById('ending-title');
+            endingSummary = document.getElementById('ending-summary');
+            restartBtn = document.getElementById('restart-btn');
+            statusBar = document.getElementById('status-bar');
+            playerStatus = document.getElementById('player-status');
+            choicesContainer = document.getElementById('choices-container');
+            
+            console.log('✓ DOM元素初始化完成');
+            console.log('  - loadingContainer:', loadingContainer);
+            console.log('  - startBtn:', startBtn);
+            console.log('  - endingScreen:', endingScreen);
+            
+            // 更新状态面板
+            if (statusPanel) {
+                const time = new Date().toLocaleTimeString();
+                const btnStatus = startBtn ? '✓ 找到' : '✗ 未找到';
+                statusPanel.innerHTML += `<div>[${time}] ✓ DOM初始化完成，开始按钮: ${btnStatus}</div>`;
+                statusPanel.scrollTop = statusPanel.scrollHeight;
+            }
+        }
+        
+        // 从script标签加载游戏数据
+        let scriptData = {};
+
+        // 游戏状态
+        let gameState = {
+            martial: 5,
+            intel: 5,
+            charm: 5,
+            wealth: 30,
+            constitution: 5,
+            luck: 5,
+            weapon: 0,
+            skills: [],
+            choiceCount: 0,  // 玩家选择次数
+            currentYear: 184,  // 当前年份
+            showingYearReport: false,  // 是否在显示年终播报
+            age: 15,  // 玩家年龄
+            
+            // 新增系统
+            identity: 'scholar',  // 职业：scholar/refugee/merchant/soldier
+            lord: null,  // 效忠君主（null表示独立）
+            faction: null,  // 阵营：魏/蜀/吴/其他
+            ownedCities: [],  // 玩家拥有的城池
+            capital: null,  // 玩家的都城
+            isLord: false  // 是否为君主
+        };
+        let GAME_DATA = null;
+        let currentDialogueIndex = 0;
+                
+        
+        function loadGameData() {
+            console.log('🚀 开始加载游戏数据...');
+            console.log('当前时间:', new Date().toISOString());
+            
+            // 先初始化DOM元素
+            console.log('🔧 调用 initDOMElements...');
+            try {
+                initDOMElements();
+                console.log('✓ initDOMElements 执行完成');
+            } catch (e) {
+                console.error('❌ initDOMElements 执行失败:', e);
+                showError('初始化DOM元素失败: ' + e.message);
+                return;
+            }
+            
+            updateProgress(10, '正在加载游戏数据...');
+            
+            try {
+                const gameDataElement = document.getElementById('game-data');
+                console.log('📋 gameDataElement:', gameDataElement);
+                
+                if (gameDataElement) {
+                    updateProgress(30, '解析游戏剧本...');
+                    console.log('📄 开始解析JSON...');
+                    
+                    scriptData = JSON.parse(gameDataElement.textContent);
+                    GAME_DATA = scriptData;
+                    console.log('✓ JSON 解析成功');
+                    console.log('  - 标题:', GAME_DATA.meta.title);
+                    console.log('  - 版本:', GAME_DATA.meta.version);
+                    console.log('  - 场景数量:', GAME_DATA.scenes.length);
+                    
+                    console.log('游戏剧本加载成功:', scriptData.meta.title);
+                    updateProgress(50, '初始化游戏系统...');
+                    
+                    updateProgress(90, '准备游戏资源...');
+                    
+                    // 直接显示开始按钮，不使用setTimeout
+                    updateProgress(100, '加载完成！');
+                    console.log('🎯 立即调用 showStartButton...');
+                    showStartButton();
+                } else {
+                    console.error('❌ gameDataElement 为 null');
+                    showError('游戏数据元素未找到，请刷新页面重试');
+                }
+            } catch (error) {
+                console.error('游戏剧本加载失败:', error);
+                console.error('错误堆栈:', error.stack);
+                showError('加载失败: ' + error.message);
+                updateProgress(0, '加载失败，请刷新页面重试');
+                if (document.getElementById('loading-text')) {
+                    document.getElementById('loading-text').style.color = '#FF6B6B';
+                }
+            }
+        }
+        
+        // 显示刷新提示
+        function showRefreshNotice() {
+            if (loadingContainer) {
+                const refreshNotice = document.createElement('div');
+                refreshNotice.id = 'refresh-notice';
+                refreshNotice.innerHTML = `
+                    <div style="background: rgba(255,107,107,0.9); color: white; padding: 15px 20px; border-radius: 10px; text-align: center; margin-top: 10px;">
+                        <p style="margin: 0 0 10px 0; font-weight: bold;">检测到浏览器缓存问题</p>
+                        <p style="margin: 0 0 10px 0; font-size: 0.9em;">请硬刷新页面：Ctrl+F5 (Windows) 或 Cmd+Shift+R (Mac)</p>
+                        <button onclick="location.reload(true)" style="background: white; color: #FF6B6B; border: none; padding: 8px 20px; border-radius: 5px; cursor: pointer; font-weight: bold;">立即刷新</button>
+                    </div>
+                `;
+                loadingContainer.appendChild(refreshNotice);
+            }
+        }
+        
+        // 在loadGameData函数中添加版本检测
+        
+        
+        // 页面加载完成后加载数据
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('📄 DOMContentLoaded 触发');
+            loadGameData();
+            init();  // 在DOM准备好后调用init
+        });
+        
+        // 10秒后如果开始按钮还没有显示，显示调试按钮
+        setTimeout(() => {
+            const debugControls = document.getElementById('debug-controls');
+            if (debugControls && (!startBtn || startBtn.style.display === 'none')) {
+                console.log('⚠️ 10秒后开始按钮仍未显示，显示调试工具');
+                debugControls.style.display = 'block';
+            }
+        }, 10000);
+        
+        // 全局错误处理
+        
+        function showError(message) {
+            const errorDisplay = document.getElementById('error-display');
+            const errorMessage = document.getElementById('error-message');
+            if (errorDisplay && errorMessage) {
+                errorDisplay.style.display = 'block';
+                errorMessage.textContent = message;
+                console.error('显示错误:', message);
+            }
+        }
+        
+        window.onerror = function(message, source, lineno, colno, error) {
+            console.error('全局错误:', message);
+            showError('错误: ' + message);
+            const loadingText = document.getElementById('loading-text');
+            if (loadingText) {
+                loadingText.textContent = '加载出错：' + message;
+                loadingText.style.color = '#FF6B6B';
+            }
+        };
+        
+        // 备用加载方式：如果DOMContentLoaded没有触发，延迟执行
+        setTimeout(() => {
+            const loadingText = document.getElementById('loading-text');
+            if (loadingText && loadingText.textContent === '游戏数据加载中...') {
+                console.log('⚠️ DOMContentLoaded未触发，使用备用加载方式');
+                loadGameData();
+            }
+        }, 2000);
+        
+    
+function init() {
+            // 初始化背景音乐系统（带错误处理）
+            try {
+                if (typeof bgmSystem !== 'undefined' && bgmSystem.init) {
+                    bgmSystem.init();
+                }
+            } catch (error) {
+                console.error('bgmSystem初始化失败:', error);
+            }
+            
+            // 添加事件监听器（带元素存在性检查）
+            const startBtnEl = document.getElementById('start-btn');
+            if (startBtnEl) {
+                startBtnEl.addEventListener('click', startGame);
+                console.log('✓ 开始按钮事件监听器已添加');
+            } else {
+                console.warn('⚠️ start-btn 元素未找到，延迟添加事件监听器');
+            }
+            
+            const restartBtnEl = document.getElementById('restart-btn');
+            if (restartBtnEl) {
+                restartBtnEl.addEventListener('click', restartGame);
+                console.log('✓ 重新开始按钮事件监听器已添加');
+            } else {
+                console.warn('⚠️ restart-btn 元素未找到，延迟添加事件监听器');
+            }
+            
+            const gameContainerEl = document.getElementById('game-container');
+            if (gameContainerEl) {
+                gameContainerEl.addEventListener('click', handleClick);
+                console.log('✓ 游戏容器事件监听器已添加');
+            } else {
+                console.warn('⚠️ game-container 元素未找到，延迟添加事件监听器');
+            }
+        }
+
+        // 开始游戏
+
+        
+        function startGame() {
+            titleScreen.style.display = 'none';
+            loadScene(scriptData.scenes[0].id);
+        }
+
+        // 重新开始
+        function restartGame() {
+            endingScreen.classList.remove('show');
+            currentDialogueIndex = 0;
+            loadScene(GAME_DATA.scenes[0].id);
+        }
+
+        // 加载场景
+        function updateStatusBar() {
+            const ageEl = document.getElementById('player-age');
+            const yearEl = document.getElementById('game-year');
+            const jobEl = document.getElementById('player-job');
+            const factionEl = document.getElementById('player-faction');
+
+            
+            if (ageEl) {
+                ageEl.textContent = `年龄: ${gameState.age}岁`;
+            }
+            if (yearEl) {
+                yearEl.textContent = `历史年: ${gameState.currentYear}年`;
+            }
+            if (jobEl) {
+                const jobNames = {
+                    'scholar': '士大夫',
+                    'refugee': '流民', 
+                    'merchant': '商贩',
+                    'soldier': '士兵'
+                };
+                jobEl.textContent = `职业: ${jobNames[gameState.identity] || '未知'}`;
+            }
+            if (factionEl) {
+                const factionText = gameState.isLord ? '君主' : 
+                                     gameState.lord ? `效忠${gameState.lord}` : '独立';
+                factionEl.textContent = `阵营: ${gameState.faction || '无'} | ${factionText}`;
+            }
+        }
+
+        function loadScene(sceneId) {
+            const scene = GAME_DATA.scenes.find(s => s.id === sceneId);
+            if (!scene) {
+                console.error('Scene not found:', sceneId);
+                return;
+            }
+
+            currentSceneId = sceneId;
+
+            // 切换背景音乐
+            bgmSystem.switchBGM(sceneId);
+            currentDialogueIndex = 0;
+
+            // 设置背景
+            if (BACKGROUNDS[scene.background]) {
+                background.src = BACKGROUNDS[scene.background];
+            }
+
+            // 清空选项
+            choicesContainer.innerHTML = '';
+            
+            // 处理setup字段，初始化或更新玩家属性
+            if (scene.setup) {
+                if (scene.setup.martial || scene.setup.force) {
+                    gameState.martial = scene.setup.martial || scene.setup.force || 5;
+                }
+                if (scene.setup.intel) gameState.intel = scene.setup.intel;
+                if (scene.setup.charm) gameState.charm = scene.setup.charm;
+                if (scene.setup.wealth) gameState.wealth = scene.setup.wealth;
+                if (scene.setup.constitution) gameState.constitution = scene.setup.constitution;
+                if (scene.setup.luck) gameState.luck = scene.setup.luck;
+                if (scene.setup.skills) gameState.skills = scene.setup.skills;
+                if (scene.setup.identity) gameState.identity = scene.setup.identity;
+            }
+            
+            // 更新状态栏
+            updateStatusBar();
+            
+            // 如果没有对话但有战斗事件，直接处理战斗
+            if (!scene.dialogues || scene.dialogues.length === 0) {
+                handleSceneEnd(scene);
+            } else {
+                clickIndicator.style.display = 'block';
+                // 显示第一条对话
+                showDialogue();
+            }
+        }
+
+        // 显示对话
+        function showDialogue() {
+            const scene = GAME_DATA.scenes.find(s => s.id === currentSceneId);
+            if (!scene) return;
+
+            if (currentDialogueIndex >= scene.dialogues.length) {
+                // 对话结束，显示选项或跳转
+                handleSceneEnd(scene);
+                return;
+            }
+
+            const dialogue = scene.dialogues[currentDialogueIndex];
+            const charName = characterNames[dialogue.character] || '';
+            const charColor = characterColors[dialogue.character] || '#FFFFFF';
+
+            // 设置角色名称
+            if (dialogue.character === 'narrator') {
+                characterName.textContent = '';
+            } else {
+                characterName.textContent = charName;
+                characterName.style.color = charColor;
+            }
+
+            // 显示角色立绘
+            showCharacterSprite(dialogue.character);
+
+            // 打字机效果显示文本
+            typeText(dialogue.text);
+
+            // 应用特效
+            if (dialogue.effect) {
+                applyEffect(dialogue.effect);
+            }
+        }
+
+        // 显示角色立绘（渐入渐出效果）
+        function showCharacterSprite(characterId) {
+            const sprite = document.getElementById('character-sprite');
+            const spriteName = characterId;
+            
+            if (spriteName && SPRITES[spriteName]) {
+                // 有立绘的角色 - 渐入显示
+                sprite.src = SPRITES[spriteName];
+                sprite.classList.add('visible');
+            } else {
+                // 无立绘（旁白、主角等） - 渐出隐藏
+                sprite.classList.remove('visible');
+            }
+        }
+
+        // 打字机效果
+        function typeText(text) {
+            isAnimating = true;
+            dialogueText.textContent = '';
+            let index = 0;
+
+            const interval = setInterval(() => {
+                if (index < text.length) {
+                    dialogueText.textContent += text[index];
+                    index++;
+                } else {
+                    clearInterval(interval);
+                    isAnimating = false;
+                }
+            }, 30);
+
+            // 保存 interval 以便跳过
+            dialogueText.dataset.interval = interval;
+            dialogueText.dataset.fullText = text;
+        }
+
+        // 跳过打字效果
+        function skipTypeText() {
+            const interval = parseInt(dialogueText.dataset.interval);
+            if (interval) {
+                clearInterval(interval);
+            }
+            dialogueText.textContent = dialogueText.dataset.fullText || '';
+            isAnimating = false;
+        }
+
+        // 应用特效
+        function applyEffect(effect) {
+            const container = document.getElementById('game-container');
+            container.classList.remove('shake', 'flash');
+            
+            if (effect === 'shake') {
+                container.classList.add('shake');
+            } else if (effect === 'flash') {
+                container.classList.add('flash');
+            } else if (effect === 'fade') {
+                background.classList.add('fade-out');
+                setTimeout(() => background.classList.remove('fade-out'), 500);
+            }
+        }
+
+        // 处理场景结束
+        function handleSceneEnd(scene) {
+            // 检查是否是结局
+            if (scene.ending) {
+                showEnding(scene.ending);
+                return;
+            }
+
+            // 处理城池占领事件
+            if (scene.cityConquest) {
+                handleCityConquest(scene.cityConquest, scene.outcomes);
+                return;
+            }
+
+            // 处理技能检定事件
+            if (scene.skillCheck) {
+                handleSkillCheck(scene.skillCheck, scene.outcomes);
+                return;
+            }
+
+            // 处理战斗事件
+            if (scene.battleEvent) {
+                handleBattle(scene.battleEvent, scene.outcomes);
+                return;
+            }
+
+            // 显示选项
+            if (scene.choices && scene.choices.length > 0) {
+                showChoices(scene.choices);
+            } else if (scene.next) {
+                // 自动跳转下一场景
+                loadScene(scene.next);
+            }
+        }
+
+        function handleBattle(battleEvent, outcomes) {
+            // 计算战斗结果
+            const playerForce = gameState.martial + (gameState.weapon || 0);
+            const enemyForce = battleEvent.enemyForce;
+            const random = Math.floor(Math.random() * 20) + 1;
+            
+            const playerTotal = playerForce * 10 + random;
+            const enemyTotal = enemyForce * 10 + Math.floor(Math.random() * 20) + 1;
+            
+            const isWin = playerTotal > enemyTotal;
+            
+            // 显示战斗结果
+            const resultText = isWin ? 
+                `⚔️ 战斗胜利！你击败了${battleEvent.desc || '敌人'}` :
+                `💀 战斗失败！你被${battleEvent.desc || '敌人'}击败`;
+            
+            // 更新对话显示
+            characterName.textContent = '战斗';
+            characterName.style.color = '#FF4500';
+            clickIndicator.style.display = 'none';
+            typeText(resultText);
+            
+            // 延迟后跳转
+            setTimeout(() => {
+                const nextSceneId = isWin ? outcomes.win : outcomes.lose;
+                loadScene(nextSceneId);
+            }, 2000);
+        }
+
+        function handleCityConquest(conquestEvent, outcomes) {
+            const cityId = conquestEvent.city;
+            const requiredForce = conquestEvent.force;
+            const cityOwnership = GAME_DATA.cityOwnership || {};
+            const cityData = cityOwnership[cityId];
+            
+            // 计算占领结果
+            const playerForce = gameState.martial + (gameState.weapon || 0);
+            const random = Math.floor(Math.random() * 20) + 1;
+            const playerTotal = playerForce * 10 + random;
+            const enemyTotal = requiredForce * 10 + Math.floor(Math.random() * 20) + 1;
+            
+            const isWin = playerTotal > enemyTotal;
+            
+            let resultText = '';
+            
+            if (isWin) {
+                // 占领成功
+                const cityName = cityData ? cityData.name : cityId;
+                const oldOwner = cityData ? cityData.occupier : '未知';
+                
+                // 更新城池归属
+                if (GAME_DATA.cityOwnership && cityId) {
+                    GAME_DATA.cityOwnership[cityId] = {
+                        owner: gameState.isLord ? '我' : gameState.lord || '我',
+                        faction: gameState.faction || '我',
+                        occupier: '我'
+                    };
+                }
+                
+                // 玩家占领城池
+                if (!gameState.ownedCities.includes(cityId)) {
+                    gameState.ownedCities.push(cityId);
+                }
+                
+                // 如果没有都城，设置第一座城池为都城
+                if (!gameState.capital) {
+                    gameState.capital = cityId;
+                }
+                
+                gameState.fame = (gameState.fame || 0) + 20;
+                
+                resultText = `🏰 攻占成功！\n\n你成功占领了${cityName}！\n原城主：${oldOwner}\n\n（点击继续）`;
+            } else {
+                resultText = `💥 攻占失败！\n\n${cityData ? cityData.name : cityId}守军顽强抵抗，你未能成功。\n\n（点击继续）`;
+            }
+            
+            // 更新对话显示
+            characterName.textContent = '城池占领';
+            characterName.style.color = '#8B4513';
+            clickIndicator.style.display = 'none';
+            
+            // 清空对话文本
+            dialogueText.textContent = '';
+            
+            // 使用打字机效果显示结果
+            let i = 0;
+            const typeWriter = setInterval(() => {
+                if (i < resultText.length) {
+                    dialogueText.textContent += resultText.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typeWriter);
+                    
+                    // 打字完成后添加点击事件跳转
+                    const conquestHandler = () => {
+                        gameState.showingYearReport = false;
+                        document.removeEventListener('click', conquestHandler);
+                        const nextSceneId = isWin ? outcomes.win : outcomes.lose;
+                        console.log('跳转到场景:', nextSceneId);
+                        loadScene(nextSceneId);
+                    };
+                    
+                    // 延迟添加点击事件，避免立即触发
+                    setTimeout(() => {
+                        gameState.showingYearReport = true; // 标记显示中
+                        document.addEventListener('click', conquestHandler);
+                    }, 100);
+                }
+            }, 30);
+        }
+
+        function handleSkillCheck(skillCheck, outcomes) {
+            const requiredSkill = skillCheck.skill;
+            const dc = skillCheck.dc;
+            
+            // 检查玩家是否有该技能
+            const hasSkill = gameState.skills && gameState.skills.includes(requiredSkill);
+            
+            let skillValue = 0;
+            let resultText = '';
+            let isWin = false;
+            
+            if (hasSkill) {
+                // 根据技能类型计算技能值
+                if (requiredSkill === 'sheshipu') {
+                    skillValue = gameState.charm;
+                } else if (requiredSkill === 'basic_fight' || requiredSkill === 'force') {
+                    skillValue = gameState.martial;
+                } else if (requiredSkill === 'huogong') {
+                    skillValue = gameState.intel;
+                } else {
+                    skillValue = Math.floor((gameState.intel + gameState.charm) / 2);
+                }
+                
+                // 加上随机值
+                skillValue += Math.floor(Math.random() * 20) + 1;
+                isWin = skillValue >= dc;
+                
+                if (isWin) {
+                    resultText = `✨ 技能检定成功！${requiredSkill}（${skillValue} >= ${dc}）\n\n（点击继续）`;
+                } else {
+                    resultText = `❌ 技能检定失败！${requiredSkill}（${skillValue} < ${dc}）\n\n（点击继续）`;
+                }
+            } else {
+                resultText = `❌ 你没有${requiredSkill}技能，无法完成此行动\n\n（点击继续）`;
+                isWin = false;
+            }
+            
+            // 更新对话显示
+            characterName.textContent = '技能检定';
+            characterName.style.color = '#9932CC';
+            clickIndicator.style.display = 'block';
+            
+            // 清空对话文本
+            dialogueText.textContent = '';
+            
+            // 使用打字机效果显示结果
+            let i = 0;
+            const typeWriter = setInterval(() => {
+                if (i < resultText.length) {
+                    dialogueText.textContent += resultText.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typeWriter);
+                    
+                    // 标记为等待点击继续状态
+                    gameState.skillCheckPending = true;
+                    gameState.skillCheckNextScene = isWin ? outcomes.win : outcomes.lose;
+                    isAnimating = false;
+                }
+            }, 30);
+        }
+
+        function showYearReport(year, nextSceneId) {
+            // 设置显示播报标志
+            gameState.showingYearReport = true;
+            
+            // 隐藏点击指示器
+            clickIndicator.style.display = 'none';
+            
+            // 处理NPC随机事件
+            const npcEvents = npcSystem.processNPCEvents(year);
+            
+            // 获取该年的历史事件
+            const yearEvents = GAME_DATA.yearEvents || {};
+            const eventText = yearEvents[year.toString()] || `公元${year}年，天下相对平静`;
+            
+            // 显示年份播报
+            characterName.textContent = `📅 公元${year}年`;
+            characterName.style.color = '#FFD700';
+            
+            // 构建播报文本
+            let reportText = `【年终播报】
+
+${eventText}`;
+            
+            // 添加NPC事件
+            if (npcEvents && npcEvents.length > 0) {
+                reportText += `
+
+📜 天下风云：
+`;
+                npcEvents.forEach(event => {
+                    reportText += event + `\n`;
+                });
+            }
+            
+            // 添加城池归属信息
+            reportText += `
+
+🏰 城池归属：`;
+            reportText += npcSystem.getCityOwnershipText();
+            
+            reportText += `
+
+（点击继续下一年）`;
+            
+            // 使用打字机效果显示
+            dialogueText.textContent = '';
+            let i = 0;
+            const typeWriter = setInterval(() => {
+                if (i < reportText.length) {
+                    dialogueText.textContent += reportText.charAt(i);
+                    i++;
+                } else {
+                    clearInterval(typeWriter);
+                    
+                    // 打字完成后添加点击事件跳转
+                    const yearReportHandler = () => {
+                        gameState.showingYearReport = false;
+                        document.removeEventListener('click', yearReportHandler);
+                        loadScene(nextSceneId);
+                    };
+                    
+                    // 延迟添加点击事件，避免立即触发
+                    setTimeout(() => {
+                        document.addEventListener('click', yearReportHandler);
+                    }, 100);
+                }
+            }, 30);
+        }
+
+        // 显示选项
+        function showChoices(choices) {
+            clickIndicator.style.display = 'none';
+            choicesContainer.innerHTML = '';
+
+            // 检查当前场景是否是地图探索（通过场景特征判断）
+            const currentScene = GAME_DATA.scenes.find(s => s.id === currentSceneId);
+            const isMapScene = currentScene && (currentScene.showMap === true || 
+                           currentScene.id.includes('map') || 
+                           currentScene.id.includes('explore') ||
+                           currentScene.cityEvent);
+
+            // 防止重复点击的标志
+            let isProcessing = false;
+
+            choices.forEach(choice => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.textContent = choice.text;
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    
+                    // 防止重复点击
+                    if (isProcessing) return;
+                    isProcessing = true;
+                    
+                    // 禁用所有按钮
+                    const allButtons = choicesContainer.querySelectorAll('.choice-btn');
+                    allButtons.forEach(button => button.disabled = true);
+                    
+                    // 如果是地图探索场景，不增加选择次数
+                    if (!isMapScene) {
+                        gameState.choiceCount++;
+                        console.log(`选择次数: ${gameState.choiceCount}, 年份: ${gameState.currentYear}`);
+                        
+                        // 检查是否达到5次，需要增加年份
+                        if (gameState.choiceCount % 5 === 0) {
+                            gameState.currentYear++;
+                            gameState.age++; // 年龄随年份增加
+                            console.log(`年份增加: ${gameState.currentYear}`);
+                            showYearReport(gameState.currentYear, choice.next);
+                            return;
+                        }
+                    }
+                    
+                    loadScene(choice.next);
+                });
+                choicesContainer.appendChild(btn);
+            });
+        }
+
+        // 显示结局
+        function showEnding(ending) {
+            const typeLabels = {
+                'good': 'GOOD ENDING',
+                'normal': 'NORMAL ENDING',
+                'bad': 'BAD ENDING'
+            };
+
+            // 设置结局图片
+            const endingImage = document.getElementById('ending-image');
+            const endingImageContainer = document.getElementById('ending-image-container');
+            if (ending.image && BACKGROUNDS[ending.image]) {
+                endingImage.src = BACKGROUNDS[ending.image];
+                endingImageContainer.style.display = 'block';
+            } else {
+                endingImageContainer.style.display = 'none';
+            }
+
+            // 设置结局类型标签
+            endingType.textContent = typeLabels[ending.type] || 'ENDING';
+            endingType.className = ending.type || '';
+            
+            // 设置结局标题
+            endingTitle.textContent = ending.title;
+            endingTitle.className = ending.type || '';
+            
+            // 设置结局总结
+            const endingSummary = document.getElementById('ending-summary');
+            if (ending.summary) {
+                endingSummary.textContent = ending.summary;
+                endingSummary.style.display = 'block';
+            } else {
+                endingSummary.style.display = 'none';
+            }
+
+            endingScreen.classList.add('show');
+        }
+
+        // 处理点击
+        function handleClick(e) {
+            // 如果在显示年终播报，不处理
+            if (gameState.showingYearReport) return;
+            
+            // 处理技能检定后的点击继续
+            if (gameState.skillCheckPending) {
+                console.log('技能检定跳转到场景:', gameState.skillCheckNextScene);
+                gameState.skillCheckPending = false;
+                loadScene(gameState.skillCheckNextScene);
+                return;
+            }
+            
+            // 忽略选项点击
+            if (e.target.classList.contains('choice-btn')) return;
+            if (choicesContainer.children.length > 0) return;
+            if (endingScreen.classList.contains('show')) return;
+            if (titleScreen.style.display !== 'none') return;
+
+            if (isAnimating) {
+                // 跳过打字效果
+                skipTypeText();
+            } else {
+                // 下一条对话
+                currentDialogueIndex++;
+                showDialogue();
+            }
+        }
+
+        // 启动
+        
+        // 背景音乐管理系统
+        const bgmSystem = {
+            bgmPlayer: null,
+            currentBGM: null,
+            volume: 0.5,
+            isMuted: false,
+            
+            // 场景到BGM的映射（已禁用）
+            sceneToBGM: {},
+            
+            // 初始化
+            init: function() {
+                try {
+                    this.bgmPlayer = document.getElementById('bgm-player');
+                    if (this.bgmPlayer) {
+                        this.volume = 0.5;
+                        this.bgmPlayer.volume = this.volume;
+                        this.setupControls();
+                    } else {
+                        console.warn('bgm-player元素不存在');
+                    }
+                } catch (error) {
+                    console.error('bgmSystem.init()错误:', error);
+                }
+            },
+            
+            // 设置音量控制
+            setupControls: function() {
+                const muteBtn = document.getElementById('mute-btn');
+                const volumeSlider = document.getElementById('volume-slider');
+                
+                if (muteBtn) {
+                    muteBtn.addEventListener('click', () => {
+                        this.toggleMute();
+                    });
+                }
+                
+                if (volumeSlider) {
+                    volumeSlider.addEventListener('input', (e) => {
+                        this.setVolume(e.target.value / 100);
+                    });
+                }
+            },
+            
+            // 切换静音
+            toggleMute: function() {
+                this.isMuted = !this.isMuted;
+                const muteBtn = document.getElementById('mute-btn');
+                
+                if (this.isMuted) {
+                    this.bgmPlayer.volume = 0;
+                    muteBtn.textContent = '🔇';
+                } else {
+                    this.bgmPlayer.volume = this.volume;
+                    muteBtn.textContent = '🔊';
+                }
+            },
+            
+            // 设置音量
+            setVolume: function(volume) {
+                this.volume = volume;
+                if (!this.isMuted) {
+                    this.bgmPlayer.volume = volume;
+                }
+            },
+            
+            // 播放BGM（已禁用：音频文件暂不可用）
+            play: function(bgmFile) {
+                if (!bgmFile || bgmFile === this.currentBGM) return;
+                this.currentBGM = bgmFile;
+                // 不尝试加载音频文件，避免404错误
+            },
+            
+            // 根据场景切换BGM
+            switchBGM: function(sceneId) {
+                if (!sceneId) return;
+                
+                // 检查是否有直接的BGM映射
+                if (this.sceneToBGM[sceneId]) {
+                    this.play(this.sceneToBGM[sceneId]);
+                    return;
+                }
+                
+                // 根据场景ID判断场景类型
+                let bgmType = ''; // BGM已禁用
+                
+                if (sceneId.includes('battle') || sceneId.includes('fight')) {
+                    bgmType = '';
+                } else if (sceneId.includes('city') || sceneId.includes('chengdu') || 
+                           sceneId.includes('jianye') || sceneId.includes('xuchang') ||
+                           sceneId.includes('luoyang') || sceneId.includes('changan')) {
+                    bgmType = '';
+                } else if (sceneId.includes('explore') || sceneId.includes('map')) {
+                    bgmType = '';
+                } else if (sceneId.includes('year_report') || sceneId.includes('ending')) {
+                    bgmType = '';
+                } else if (sceneId.includes('ending')) {
+                    bgmType = '';
+                } else if (sceneId.includes('scholar')) {
+                    bgmType = '';
+                } else if (sceneId.includes('soldier')) {
+                    bgmType = '';
+                } else if (sceneId.includes('merchant')) {
+                    bgmType = '';
+                } else if (sceneId.includes('refugee')) {
+                    bgmType = '';
+                }
+                
+                this.play(bgmType);
+            },
+            
+            // 停止播放
+            stop: function() {
+                this.bgmPlayer.pause();
+                this.bgmPlayer.currentTime = 0;
+                this.currentBGM = null;
+            }
+        };
+        
+    </script>
+
+    <!-- 音频元素 -->
+    <audio id="bgm-player" loop>
+        <source src="" type="audio/mpeg">
+    </audio>
+    
+    <!-- 音量控制 -->
+    <div id="audio-controls">
+        <button id="mute-btn" class="audio-btn">🔊</button>
+        <div id="volume-slider-container">
+            <input type="range" id="volume-slider" min="0" max="100" value="50">
+        </div>
+    </div>
+</body>
+</html>
